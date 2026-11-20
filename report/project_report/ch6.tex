@@ -1,0 +1,38 @@
+\chapter{Pending Work and Conclusions}
+\label{ch:pending}
+
+\section{Conclusions}
+We reproduced RiskSEA end to end on one laptop and compared every table and figure with the paper. The paper's engineering findings hold in direction: the node2vec settings it chooses are the best in our sweep, more walks help, and incremental dynamic embedding beats propagation at every checkpoint with a decisive advantage in coverage and a clear margin at the last. Its headline ablation, that graph embeddings add substantially to behavioural features, does not reproduce on our data, and we traced the difference to our easier, miner-dominated negative class, our smaller and earlier graph and our public labels, not to an error in the paper. Along the way we found four silent-corruption hazards and recorded 24 decisions where the paper was silent.
+
+We then recognised that scoring wallets is not the question an investigator asks after a victim reports an address, and built CryptoTrace to answer that question. It follows funds forward in time and by amount with a local ranked propagation, stops at labeled exchanges, mixers, a DEX contract and busy hubs, infers exchange deposit addresses with a sweep rule, tags laundering patterns with explainable rules, and returns paths of real transactions. On two documented hacks it reaches the published destinations (99.8\% of the KuCoin funds at Tornado Cash; 99.98\% of the Cryptopia funds at EtherDelta, though not the later exits), and on a real phishing-labeled wallet it attributes 90.9\% of the funds to 29 deposit addresses of one exchange, where a blind two-hop search finds nothing. Each case costs cents, and re-runs are free. The result is delivered as a FastAPI service and an interactive application that shows the mechanism, states its limits and prints an investigator report.
+
+We are explicit about what this is: a working prototype validated on three cases. It is not a measured accuracy, it handles ETH external transfers only, and its exchange links are inferred and need the exchange's confirmation.
+
+\section{Pending Work}
+Table~\ref{tab:pending} lists the work that remains, ordered by how much each item widens what the prototype can handle. The first item follows directly from the Cryptopia result.
+
+\begin{table}[H]
+\centering\small\singlespacing
+\begin{tabular}{r p{3.3cm} p{4.3cm} p{4.0cm}}
+\toprule
+\textbf{\#} & \textbf{Item} & \textbf{Why it is needed} & \textbf{What it takes}\\
+\midrule
+1 & DEX and contract pass-through & The Cryptopia trace stops at the EtherDelta contract; Yobit.net and OKEx lie behind it & Read internal transfers (the BigQuery traces table) and match deposits to withdrawals through the contract\\
+2 & ERC-20 tokens and stablecoins & Most fraud proceeds are moved as USDT or other tokens & Token-transfer adapter with token-aware value; swap redirection as in the tracing literature\\
+3 & Other chains and bridges & Cases span Tron, BNB Chain and Bitcoin; funds cross bridges & Provider per chain on the same Edge interface; bridge-event matching\\
+4 & Wire in the RiskSEA reproduction & Score the intermediate and mule accounts found by the tracer & Serve the offline model on tracer output; extend the extraction to later blocks\\
+5 & Larger and better labels & Deposit-address and VASP coverage limits attribution & Additional label sources; clustering of exchange wallets; label confidence\\
+6 & A 20-case benchmark & Three cases are a smoke test, not an accuracy measurement & Obtain the published case files; run the evaluation harness already built\\
+7 & Real-time feed and alerts & The public dataset lags the chain & Node, RPC or commercial feed; watchlist and alert module\\
+8 & SAHYOG and NCRP integration & Required by the problem statement; no specification was available & Obtain the interface specification; build a batch intake adapter and report export in the required format\\
+9 & Heterophily-aware risk models & Embedding smoothing is a poor fit for fraud neighbourhoods & Inductive graph neural networks and unsupervised risk propagation\\
+10 & Productionisation & Authentication, audit log, persistence, deployment & Database for cases, user roles, containerised deployment, monitoring\\
+11 & Automated interface tests & The React application is checked by hand and by screenshots only & Browser-driven tests of the main flows\\
+\bottomrule
+\end{tabular}
+\caption{Pending work.}
+\label{tab:pending}
+\end{table}
+
+\section{Items to Clarify}
+Three requirements of the problem statement cannot be settled from what was available to us and are listed as questions rather than claims: the specification of the SAHYOG and NCRP platforms; the volume and latency expected for ``real-time'' use; and which chains and tokens are in priority order for the cases investigators actually receive.

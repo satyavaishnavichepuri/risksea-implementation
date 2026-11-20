@@ -1,0 +1,87 @@
+\appendix
+\renewcommand{\chaptername}{Appendix}
+\chapter{Decision Log}
+\label{app:decisions}
+Every place where the RiskSEA paper was silent or ambiguous, and every deviation, was logged when it was made. Values live in a configuration file, never in code.
+{\footnotesize\singlespacing
+\input{../tables/tab_decisions}
+}
+
+\chapter{Complete List of Deposit Addresses Found}
+\label{app:deposits}
+These are the 29 addresses on the phishing trace that the sweep rule classified as deposit addresses of the labeled exchange wallet \emph{ShapeShift 3}, ranked by share of the funds. They are inferred, medium-confidence results and a lead to be confirmed by the exchange, not proof. Shares sum to 90.9\% of the traced funds.
+\gentable{gen/tab_deposits.tex}{The 29 inferred ShapeShift 3 deposit addresses (TTR-lite, phishing case).}{tab:deposits}
+
+\chapter{Reproducibility and Commands}
+\label{app:repro}
+\section{Environment}
+Windows 11, 16 cores, 15.7\,GiB RAM, Python 3.12; main libraries NumPy, pandas, DuckDB, scikit-learn, gensim 4.4, Numba, PyArrow, FastAPI and Uvicorn; Node.js 24 with Vite and React for the interface. This report and the comparative study were typeset with Tectonic. Raw data, graphs and embeddings are not under version control (large, regenerable, and some label sources have unclear terms of use).
+
+\section{Reproduction pipeline order}
+All scripts are in \code{scripts/}, tests in \code{tests/}.
+\begin{enumerate}[label=\arabic*.]
+\item \code{bq\_dry\_run.py}, \code{extract\_bq.py}, \code{download\_result.py}: dry-run costs, then extract and download the BigQuery tables (parallel, resumable, billing-capped).
+\item \code{label\_overlap.py}, \code{real\_features.py}: label audit and behavioural features for labeled addresses.
+\item \code{train\_core.py}: core selection and node2vec training (\code{--exclude-seeds} for variant B); \code{table2\_real.py}: Table~II.
+\item \code{build\_snapshots.py}, \code{table4\_run.py}, \code{table4\_eval.py}: time-sliced adjacency, propagation and dynamic runs, Table~IV.
+\item \code{sweep\_table3.py}, \code{sweep\_report.py}: Table~III sweep and its figures.
+\item \code{tsne\_figures.py}, \code{make\_report\_tables.py}: t-SNE figures and every table of the comparative study, generated from result files.
+\end{enumerate}
+
+\section{Running CryptoTrace}
+From the repository root, in PowerShell. The built interface in \code{frontend/dist} is served by the same process.
+\begin{verbatim}
+cd frontend; npm install; npm run build; cd ..
+.\.venv\Scripts\python.exe -m uvicorn cryptotrace.api:app --app-dir src --port 8000
+\end{verbatim}
+Then open \url{http://127.0.0.1:8000}. For live tracing of any wallet (billed and capped), authenticate with \code{gcloud auth application-default login} and set \code{CRYPTOTRACE\_BQ\_PROJECT} before starting the server. To regenerate the cached benchmark results: \code{scripts\textbackslash ct\_run\_cases.py <project>}. To retake every screenshot of this report: \code{node scripts/ct\_screenshots.mjs <output-folder>} with the server running. Tests: \code{.\textbackslash.venv\textbackslash Scripts\textbackslash python.exe -m pytest -q} (78 tests).
+
+\section{Repository history}
+The work is on three commits on the branch used for the prototype: the initial reproduction pipeline, the addition of the sweep, t-SNE figures, the comparative LaTeX report and decision log entries D22--D24, and the polished tracing demo. All commits were made by the authors.
+
+\chapter{Additional Figures}
+\label{app:figs}
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.48\textwidth}\includegraphics[width=\textwidth]{figures/sweep_fig5_walks}\caption{Number of walks.}\end{subfigure}\hfill
+\begin{subfigure}{0.48\textwidth}\includegraphics[width=\textwidth]{figures/sweep_fig6_length}\caption{Walk length.}\end{subfigure}\\[4pt]
+\begin{subfigure}{0.48\textwidth}\includegraphics[width=\textwidth]{figures/sweep_fig7_joint}\caption{Walks and length.}\end{subfigure}\hfill
+\begin{subfigure}{0.48\textwidth}\includegraphics[width=\textwidth]{figures/sweep_fig8_p}\caption{Return parameter $p$.}\end{subfigure}\\[4pt]
+\begin{subfigure}{0.48\textwidth}\includegraphics[width=\textwidth]{figures/sweep_fig9_q}\caption{In-out parameter $q$.}\end{subfigure}
+\caption{Precision--recall curves of the Table~III sweep (analogs of the paper's Figures~5--9; one curve per setting from the first test split, legends give the mean PR-AUC over five splits).}
+\label{fig:sweepcurves}
+\end{figure}
+
+\chapter{Full-Page Screenshots}
+\label{app:screens}
+The following captures show each page of the application at full length.
+\shot{02_overview_full}{Overview page, full length.}
+\shot{04_system_full}{System page, full length, with the planned modules shown.}
+\shot{39_compare_full}{Compare page (phishing case), full length, including the published 20-case table.}
+\shotw{41_gaps_full_p1}{Gaps page, first half.}{0.78}
+\shotw{41_gaps_full_p2}{Gaps page, second half: remaining gaps and the roadmap.}{0.78}
+\shotw{43_report_full_p1}{Investigator report, first half.}{0.78}
+\shotw{43_report_full_p2}{Investigator report, second half: evidence paths, laundering patterns, method and limits.}{0.78}
+
+\chapter{Chronological Work Log}
+\label{app:log}
+This log lists, in order, what was done and observed during the project, including approvals and corrections. It complements Table~\ref{tab:workdone}.
+\begin{enumerate}[label=\arabic*.]
+\item \textbf{Paper review.} The RiskSEA paper was read; we assessed which parts could be implemented from its text and which depend on private data (labels) or cluster scale.
+\item \textbf{Plan.} An end-to-end reproduction workflow was written for execution step by step, with the instruction that every deviation be recorded; a first synthetic world with planted fraud clusters was used to debug before real data.
+\item \textbf{Cost control first.} BigQuery dry runs were run before any extraction; the extraction was approved for a specific tier and cost; every query carried a billing cap equal to its dry run plus 5\%.
+\item \textbf{Authentication.} Application-default credentials were set up by the user; the code base never handles credentials.
+\item \textbf{Label sources.} Public sources were identified; the Etherscan-derived label lists and the OFAC list were downloaded only after explicit approval of each file, and the terms-of-use caveat was recorded (decision D19).
+\item \textbf{Extraction and download.} The fast download path was blocked by policy, so parallel resumable REST reads were used; the highest block received was verified to be exactly 5\,000\,000.
+\item \textbf{Graph, features, embeddings.} The staged DuckDB graph build replaced a first attempt that ran out of memory; features were log-compressed after a float32 overflow; the gensim integer-token trap was found and fixed.
+\item \textbf{Experiments.} Table~II was run in two variants; the has-embedding leak was found and controlled; the Table~III sweep was run on the core subgraph with retraining noise measured; Table~IV was run at three checkpoints; t-SNE figures and cluster metrics were produced.
+\item \textbf{Version control.} The user created the repository and made all commits; the assistant supplied commands only.
+\item \textbf{Comparative study.} A LaTeX report compared the paper with the reproduction, starting with a comparison of data constraints; its PDF was produced.
+\item \textbf{Extension study.} The textbook was read; RiskSEA was judged a strong baseline for scoring and infrastructure but not for tracing and attribution; eight research gaps were written in plain words and the architecture was sketched.
+\item \textbf{CryptoTrace build.} Engines, providers, label store, API and interface were built; a dry run of the per-hop query gave 1.2\,GiB; validation on KuCoin and Cryptopia followed (Tornado Cash reached; EtherDelta reached; Yobit.net and OKEx not reached).
+\item \textbf{Defects.} The dry-run placeholder, the provider time filter, the parent--child ping-pong, the exploration query over our own cap and several interface bugs were found and fixed (Table~\ref{tab:bugs}).
+\item \textbf{Third case.} A real phishing-labeled wallet was found with an exploration query of 29.9\,GiB, traced for 19.9\,GiB, and added as the main demonstration case, with the selection bias disclosed.
+\item \textbf{Polish.} Findings were grouped by receiving entity, a demo guide, keyboard shortcuts, automatic highlighting of the top finding, and a responsive layout were added; 78 tests pass.
+\item \textbf{Presentation material.} Plain-language explanations of each screen and of the improvements over the baseline were prepared for the project presentation.
+\item \textbf{This report.} Screenshots taken earlier were found to mismatch their file names in several cases (wrong strategy or case), so the screenshot script was rewritten and every screen was retaken before they were included.
+\end{enumerate}

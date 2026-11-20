@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
   "numpy", "pandas", "pyarrow", "duckdb", "scikit-learn", "gensim",
   "numba", "matplotlib", "pyyaml", "networkx", "pytest",
-  "google-cloud-bigquery", "db-dtypes",
+  "google-cloud-bigquery", "db-dtypes", "fastapi", "uvicorn",
 ]
 
 [build-system]

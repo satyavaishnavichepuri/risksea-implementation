@@ -1,0 +1,82 @@
+% Project report in the Vasavi College of Engineering format (Dept. of CSE), 2026.
+% Body: Times New Roman 12 pt, 1.5 spacing; chapter headings 16 pt bold; section and subsection headings 12 pt bold;
+% paragraph headings 14 pt bold; page numbers at bottom centre from the Introduction onwards; IEEE-style references.
+% Typeset with Tectonic (XeTeX):  tools/tectonic/tectonic.exe main.tex   (run from report/project_report)
+\documentclass[12pt,a4paper,oneside]{report}
+\usepackage[left=3.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\setmonofont[Scale=0.86]{Courier New}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,array,multirow,float,graphicx,xcolor,enumitem,setspace,titlesec,fancyhdr,caption,subcaption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,calc}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\graphicspath{{./}{../}}
+\input{../numbers}
+
+% ------------------------------------------------------------------ project data (edit here only)
+\newcommand{\ProjectTitle}{Reproducing and Extending RiskSEA: Scalable Graph Risk Scoring and Automated On-Chain Money Tracing for Fraud-Linked Exchange Identification}
+\newcommand{\ProjectTitleShort}{Reproducing and Extending RiskSEA: Scalable Graph Risk Scoring and On-Chain Money Tracing}
+\newcommand{\StudentA}{M. Krithika}\newcommand{\HtA}{1602-23-733-151}
+\newcommand{\StudentB}{Satya Vaishnavi}\newcommand{\HtB}{1602-23-733-174}
+\newcommand{\StudentC}{G. Vidya}\newcommand{\HtC}{1602-23-733-189}
+\newcommand{\GuideName}{Mr. Kandi Trishaank}
+\newcommand{\GuideDesignation}{Assistant Professor}
+\newcommand{\HodName}{Dr. Nagaratna P. Hegde}
+\newcommand{\Batch}{23}
+
+% ------------------------------------------------------------------ formatting
+\onehalfspacing
+\setlength{\parindent}{1.0cm}
+\setlength{\parskip}{0pt}
+\setlist{itemsep=2pt,topsep=4pt,parsep=0pt}
+\renewcommand{\arraystretch}{1.12}
+\captionsetup{font={small,singlespacing},labelfont=bf,skip=6pt}
+\setlength{\emergencystretch}{3em}
+\titleformat{\chapter}[display]{\bfseries\fontsize{16}{20}\selectfont\centering}{\MakeUppercase{\chaptername}\ \thechapter}{8pt}{\MakeUppercase}
+\titlespacing*{\chapter}{0pt}{-10pt}{22pt}
+\titleformat{\section}{\bfseries\fontsize{12}{15}\selectfont}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\bfseries\fontsize{12}{15}\selectfont}{\thesubsection}{0.7em}{}
+\titleformat{\subsubsection}{\bfseries\itshape\fontsize{12}{15}\selectfont}{\thesubsubsection}{0.7em}{}
+\titleformat{\paragraph}[runin]{\bfseries\fontsize{14}{17}\selectfont}{}{0pt}{}[.\ ]
+\titlespacing*{\section}{0pt}{14pt}{6pt}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+\titlespacing*{\paragraph}{0pt}{8pt}{0.4em}
+\pagestyle{plain}
+\renewcommand{\listtablename}{LIST OF TABLES}
+\renewcommand{\listfigurename}{LIST OF FIGURES}
+\renewcommand{\contentsname}{TABLE OF CONTENTS}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{2}
+
+% convenience macros
+\newcommand{\vOK}{\textbf{reproduced}}
+\newcommand{\vPart}{\textbf{partly}}
+\newcommand{\vNo}{\textbf{not reproduced}}
+\newcommand{\code}[1]{\texttt{#1}}
+% a screenshot figure: \shot{file-stem}{caption}  (width = text width)
+\newcommand{\shot}[2]{\begin{figure}[H]\centering\includegraphics[width=\textwidth]{shots/#1}\caption{#2}\label{fig:#1}\end{figure}}
+\newcommand{\shotw}[3]{\begin{figure}[H]\centering\includegraphics[width=#3\textwidth]{shots/#1}\caption{#2}\label{fig:#1}\end{figure}}
+% a generated table inside a float
+\newcommand{\gentable}[3]{\begin{table}[H]\centering\small\singlespacing\setlength{\tabcolsep}{3pt}\input{#1}\caption{#2}\label{#3}\end{table}}
+
+\begin{document}
+\input{front}
+
+% ================================================================== body: page numbers start here
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\input{ch1}
+\input{ch2}
+\input{ch3}
+\input{ch4}
+\input{ch5}
+\input{ch6}
+\input{refs}
+\input{appendix}
+\end{document}

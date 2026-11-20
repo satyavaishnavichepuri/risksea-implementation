@@ -1,0 +1,220 @@
+\chapter{System Analysis and Overview of the Proposed System}
+\label{ch:analysis}
+
+\section{Existing System}
+\subsection{Manual investigation with block explorers}
+An investigator who receives a victim-reported address opens a public block explorer, reads the list of transactions, selects the outgoing transfers that look relevant and repeats the process for every recipient. The investigator has to decide at every hop whether a recipient is a pass-through account, an exchange deposit address, a mixer or an ordinary user, usually from memory and from scattered public tags. The effort grows with the number of hops and with the fan-out of the funds. The output is a set of screenshots and notes that another analyst cannot easily reproduce.
+
+\subsection{Rule-based and commercial tracing tools}
+Commercial blockchain-analytics suites automate part of this work and maintain large proprietary label databases. Their label coverage is their main advantage. Their drawbacks for this problem are cost, closed algorithms that offer no explanation of why a path was followed, and, for many users, no way to run the analysis on their own data. We did not have access to any of them, and we do not compare against them.
+
+\subsection{Machine-learning wallet scoring}
+The research and industry systems closest to this work score wallets. RiskSEA \cite{risksea}, the paper we reproduced, is the clearest example: it outputs a risk score for each address from behavioural features and a graph embedding. Scoring answers ``how risky is this address'', which is useful for compliance screening. It does not follow money, it does not respect the direction or the timing of transfers (node2vec walks are undirected and untimed), and it does not name the exchange that received the funds. The textbook that guided the extension \cite{textbook} reports that embedding-based methods applied to tracing needed more than 24 hours per case or missed targets, which is the practical reason not to use them for the tracing step.
+
+\section{Literature Survey}
+\label{sec:litsurvey}
+Table~\ref{tab:lit} summarises the families of methods that bear on the problem and how each was used in this project. Citations to the textbook refer to its chapters on entity identification, risk patterns, heterophily in transaction graphs, streaming graph embedding and transaction tracing.
+
+\begin{table}[H]
+\centering\small\singlespacing
+\begin{tabular}{p{2.9cm} p{4.7cm} p{4.7cm}}
+\toprule
+\textbf{Method} & \textbf{Idea and strength} & \textbf{Weakness for tracing; use here}\\
+\midrule
+node2vec \cite{node2vec} & Biased second-order random walks, then skip-gram, give each node a vector that reflects its neighbourhood. Good for classification. & Undirected, untimed, assumes similar nodes are adjacent. Reproduced as the RiskSEA baseline; not used for tracing.\\
+dynnode2vec \cite{dynnode2vec} & Incremental node2vec: walk only from changed nodes and continue training from previous weights. & Same assumptions as node2vec. Reproduced as ``dynamic node2vec'' (Chapter~\ref{ch:results}).\\
+RiskSEA \cite{risksea} & Random forest over behavioural features and node2vec, with embedding propagation and incremental updates to reach every address. & A wallet score, not a tracer. Reproduced; planned as the risk-model module.\\
+Taint analysis (haircut, poison) \cite{textbook} & Spread taint forward from the source in proportion to value (haircut) or to every output (poison). Simple and explainable. & No ranking, so the output grows quickly; ignores timing. Implemented as the Haircut baseline.\\
+Blind BFS \cite{textbook} & Follow every neighbour to a fixed depth. & Output explodes; a depth cap of two means it stops before funds reach an exchange. Implemented as a baseline.\\
+Personalised PageRank (APPR) \cite{pagerank,appr} & Local push algorithm that ranks nodes by relevance to a source and touches only a small part of the graph. & Undirected relevance, no time. Its push mechanism is the basis of our engine.\\
+TRacer / TTR \cite{tracer,textbook} & Adapts the push idea to transactions: a tendency to follow outflows, weighting by amount, temporal reasoning (funds follow only later transfers) and token redirection through swaps. & Designed for exactly this problem. Implemented in reduced form as TTR-lite.\\
+Label propagation, Louvain \cite{textbook} & Community methods that spread labels over the whole graph. & Cost grows with the graph; poor recall at tracing in the published comparison.\\
+Heterophily-aware models \cite{textbook} & Observe that on transaction graphs adjacent nodes often have different labels (edge homophily about 0.28 reported), so smoothing-based models underperform. & Motivates abandoning embedding smoothing for the tracing step; a path for the future risk model.\\
+\bottomrule
+\end{tabular}
+\caption{Methods considered and how each is used in this project.}
+\label{tab:lit}
+\end{table}
+
+\subsection{Published comparison of tracing methods}
+The textbook \cite{textbook} compares the methods above on 20 real incidents across three chains. We reproduce its table in Table~\ref{tab:bookbench} because it is the evidence behind our choice of method; these are published numbers, not ours.
+
+\begin{table}[H]
+\centering\small\singlespacing
+\begin{tabular}{p{5.0cm} r r r r}
+\toprule
+\textbf{Method} & \textbf{Recall (\%)} & \textbf{Accounts (K)} & \textbf{Depth} & \textbf{Time (h)}\\
+\midrule
+TRacer (ranked local search) & 92.31 & 0.87 & 5.05 & 0.65\\
+APPR (personalised PageRank) & 71.92 & 0.66 & 3.60 & 0.51\\
+BFS (depth 2) & 77.02 & 52.50 & 2.00 & 0.05\\
+Poison taint (depth 2) & 70.06 & 41.45 & 2.00 & 0.03\\
+Haircut taint & 58.85 & 10.35 & 4.15 & 0.01\\
+Label propagation (LPA) & 67.76 & 682.30 & 10.35 & 1.76\\
+Louvain communities & 51.27 & 111.84 & 9.75 & 1.69\\
+Ethprivacy (features) & 0.01 & 1.89 & 1.10 & 1.78\\
+Metapath2Vec / Ethprivacy (embeddings) & --- & --- & --- & $>24$\\
+\bottomrule
+\end{tabular}
+\caption{Published comparison on 20 real cases (source: the textbook, transaction-tracing chapter). Recall is the share of target accounts found; accounts is the number of accounts in the output, in thousands; time is the runtime in hours. A ranked local search reaches the highest recall while reviewing about 870 accounts; blind BFS reviews about 52\,500 for lower recall.}
+\label{tab:bookbench}
+\end{table}
+
+\section{The Baseline Paper in Brief}
+\label{sec:paper}
+\textbf{Task.} Given an Ethereum address, output a risk score in $[0,1]$. Ground truth has two classes: \emph{Risk-1} (addresses involved in illegal activity such as phishing, scams or theft) and \emph{Risk-0} (exchanges, miners, government). If sources disagree the higher risk wins.
+
+\textbf{Model.} A random-forest classifier over three feature sets: behavioural features of ETH transactions, behavioural features of ERC-20 transfers (amounts, timestamps, frequencies), and a node2vec embedding of the transaction graph. The intuition is that malicious addresses spread funds through tightly knit clusters of helper addresses, which an embedding of graph neighbourhoods can capture.
+
+\textbf{Scaling problems and the two proposed solutions.} node2vec is transductive (no embedding for unseen addresses), expensive at 266\,M nodes, and must be recomputed as the chain grows. The paper offers:
+\begin{enumerate}
+\item \emph{Embedding propagation:} train node2vec on a core set of 30\,M addresses and give every other address the aggregate of up to five randomly sampled one-hop core neighbours (78\% of addresses reached).
+\item \emph{DynN2VChain:} an incremental version of node2vec (after dynnode2vec \cite{dynnode2vec}): walks are generated only from addresses that changed, over the whole current graph, and the skip-gram model is trained further from its previous weights. Random walks are generated by a horizontally scalable split--apply--combine procedure over a neighbour list capped at the top 200 neighbours.
+\end{enumerate}
+
+\textbf{Reported results.} Table~II: behavioural features, propagated node2vec and both (F$_1$ 0.718, 0.738, 0.851). Table~III and Figures~5--9: a hyperparameter sweep (best: $p=q=1$, 10 walks of length 10). Table~IV and Figure~10: dynamic node2vec outperforms propagation at every checkpoint. Figures~11--13: t-SNE plots in which labels form clusters.
+
+\section{Data and Resource Constraints: Paper versus Reproduction}
+\label{sec:constraints}
+Before any result is compared, this section lays out how our inputs differ from the paper's. The differences are large, and they shape how every later number should be read.
+
+\subsection{Side-by-side comparison}
+{\small\singlespacing
+\begin{longtable}{p{2.7cm} p{5.4cm} p{6.0cm}}
+\caption{Data, scale and resource differences between the paper and this reproduction.}\label{tab:constraints}\\
+\toprule
+\textbf{Aspect} & \textbf{Paper} & \textbf{This reproduction}\\
+\midrule\endfirsthead
+\toprule
+\textbf{Aspect} & \textbf{Paper} & \textbf{This reproduction}\\
+\midrule\endhead
+\bottomrule\endfoot
+Chain period & Ethereum up to Sept.\ 2023; checkpoints at 5\,M, 8\,M, 10\,M and 16\,M blocks & Blocks 0--5\,000\,000 (to early 2018)\\
+Graph size & $\approx$266\,M addresses (275\,M in the conclusion) & \NumNodes{} addresses; \NumPairs{} directed address pairs; \NumAdj{} adjacency entries after the top-200 cap\\
+Transfers used & ETH transactions and ERC-20 transfers & Same: 148.7\,M ETH transactions (no internal traces) aggregated to 56.4\,M pairs; 20.3\,M ERC-20 address--token pairs\\
+Label count & 129\,012 (43\,334 Coinbase-internal + 85\,678 external) & 10\,044 public labels, of which \NumLabeled{} appear in the graph: \NumBad{} bad and \NumGood{} good\\
+Label sources & Coinbase internal data; external sources not disclosed & Public only: Etherscan-derived \code{eth-labels}, OFAC list, block miners\\
+Good class & Exchanges, miners, government & \NumMiners{} miners (97\%) and 127 exchanges\\
+Bad class & Illegal activity (phishing, scam, theft, \dots) & 474 Etherscan phishing/hack addresses and 7 OFAC-sanctioned\\
+Class balance & ``Balanced representation'' sought; counts not given & 10.5\% bad ($481/4\,561$)\\
+Compute & Databricks CPU clusters (i3.8xlarge, r5.16xlarge, r5.xlarge); a V100 GPU for the 30\,M-address model & One laptop: 16 cores, 15.7\,GiB RAM, no GPU\\
+Embedding memory & 30\,M addresses held in GPU memory & 2.5\,M-node core in RAM (a dense 24\,M $\times$ 128 float32 matrix alone would take 12\,GB)\\
+Core set & 30\,M of 266\,M (11.3\%) & 2.5\,M of 24.1\,M (10.4\%)\\
+Distributed walks & MapReduce on a cluster & Partitioned neighbour store with a process pool; output verified bit-identical to the in-memory generator; not run on a cluster\\
+Incremental updates & Daily, 5\,M $\to$ 16\,M blocks & Every 250\,K blocks, 4.0\,M $\to$ 5.0\,M, on a 3\,M-node universe\\
+Sweep graph & 30\,M-address subsample & The 2.5\,M-node core subgraph\\
+Edge weights & Interaction counts used to rank top-$K$ neighbours & Counts in the global graph; time-sliced snapshots are unweighted\\
+Unspecified details & Embedding dimension, skip-gram settings, forest settings, split, threshold, behavioural feature list & Chosen by us (Appendix~\ref{app:decisions})\\
+Metrics & P/R/F$_1$ (Table~II); ``AUC'' (Tables~III--IV), not defined & P/R/F$_1$ at 0.5, PR-AUC (area under the precision--recall curve), ROC-AUC\\
+Uncertainty & None reported & 95\% confidence intervals over 5 splits; retraining noise measured\\
+\end{longtable}}
+
+\subsection{Labels in detail}
+Ground-truth labels are the single biggest difference. Table~\ref{tab:labels} shows what we could assemble from public sources and how much of it is usable.
+\begin{table}[H]
+\centering\small\singlespacing
+\input{../tables/tab_labels}
+\caption{Public label sources and how many labeled addresses exist in our graph.}
+\label{tab:labels}
+\end{table}
+Three features of this label set matter for interpreting results.
+\begin{enumerate}
+\item \textbf{Timing.} Of 5\,590 Etherscan phishing/hack addresses only 474 are active by block 5\,000\,000; most appear later. Bad addresses are scarce early: only 1 is present at block 2.0\,M, 36 at 4.0\,M, 262 at 4.5\,M and 481 at 5.0\,M. This forced us to evaluate time-resolved experiments only from 4.0\,M onward.
+\item \textbf{Composition of the good class.} Miners dominate (97\%). Miners have an unusual structure (regular payouts to many recipients), so ``bad versus good'' is plausibly easier here than in the paper's setting, which also includes exchanges and government addresses.
+\item \textbf{Provenance.} The phishing/hack and exchange labels derive from Etherscan tags via a public repository whose scraping may conflict with Etherscan's terms of use. We asked for and received approval before downloading, used them for research only, kept the raw files out of version control, and flag this as a caveat on redistribution.
+\end{enumerate}
+
+\subsection{What these constraints imply}
+\begin{itemize}
+\item \textbf{Absolute scores are not comparable.} Our behavioural baseline scores F$_1$ 0.956 against the paper's 0.718; we attribute much of this to the easy, miner-heavy negative class rather than to better features.
+\item \textbf{Small bad class.} A 20\% test split contains about 96 bad addresses, so single-split metrics are noisy; we report confidence intervals and warn where a row rests on very few positives.
+\item \textbf{Smaller, older graph.} Our graph ends in early 2018, five years before the paper's, when Ethereum had far fewer contracts and none of the later DeFi patterns, and it is about 11 times smaller. Propagation coverage and the value of graph structure may differ.
+\item \textbf{One machine.} Memory forced a subsampled core and a 3\,M-node universe; wall-clock times are not comparable with a cluster.
+\end{itemize}
+
+\section{Research Gaps}
+\label{sec:gaps}
+Reading the baseline against the tracing literature gives five gaps, each of which a design decision of CryptoTrace answers. Table~\ref{tab:gaps} pairs them.
+
+\begin{table}[H]
+\centering\small\singlespacing
+\begin{tabular}{r p{6.0cm} p{6.0cm}}
+\toprule
+\textbf{\#} & \textbf{Gap} & \textbf{Our response}\\
+\midrule
+1 & Embeddings are slow and weak at tracing: global methods took over 24 hours per case or missed targets, while a targeted local search found 92\% of targets in 0.65 hours reviewing about 870 accounts. & Local ranked propagation from the reported wallet (TTR-lite); no training.\\
+2 & Heterophily: scam wallets transact with exchanges and ordinary victims, yet node2vec assumes similar nodes are adjacent and walks on the undirected graph. & Directed, time-respecting, value-weighted flow instead of embedding smoothing.\\
+3 & Single chain, batch data, pre-2018 history: real cases need recent data, live feeds and cross-chain bridges. & A provider interface (Edge model) that another chain can implement; live BigQuery mode with caps; cross-chain listed as pending.\\
+4 & Missing deposit-address labels: public lists tag exchange hot wallets, not customer deposit addresses. & Sweep rule that infers deposit addresses from behaviour, marked as inferred.\\
+5 & Auditable evidence: investigators need transaction hashes, amounts and timestamps, not a black-box score. & Evidence path of real transactions for every finding, with confidence and stated limits.\\
+\bottomrule
+\end{tabular}
+\caption{Research gaps and the corresponding design response.}
+\label{tab:gaps}
+\end{table}
+
+\paragraph{Why RiskSEA alone is not enough.} RiskSEA is a strong baseline for wallet risk scoring, for exchange classification (our reproduction separates miners from exchanges with silhouette 0.457) and for data infrastructure (BigQuery extraction, top-$K$ graph build, incremental updates, label audit and a leakage-aware test harness). It is not the baseline for the whole system, because the core task is directed path tracing and entity attribution, which RiskSEA does not perform. We therefore keep it as the planned risk-model module and build the tracer separately.
+
+\section{Proposed System}
+CryptoTrace is a pipeline of small modules with one job each: intake of a reported wallet and window; a chain adapter that turns the chain into a stream of timed, valued transfers; an edge cache; a label store; a tracing engine; an attribution engine; a typology engine; a case file and report; a dashboard and API; and a benchmark harness (Chapter~\ref{ch:design}). The key properties are:
+\begin{itemize}
+\item \textbf{Starts from the complaint.} A single reported wallet and a time window, not a pre-scored graph.
+\item \textbf{Local and incremental.} Only the neighbourhoods the search touches are fetched, one query per hop.
+\item \textbf{Direction, time and amount.} Funds follow transfers that happen after they arrive, split in proportion to value.
+\item \textbf{Attributes, then stops.} It stops at labeled exchanges, mixers, DEX contracts and busy hubs, and infers deposit addresses.
+\item \textbf{Explains itself.} Evidence paths with transaction hashes, rule-based pattern tags, confidence levels and a visible list of limits.
+\item \textbf{Cheap.} The first fetch of a case costs cents; re-runs cost nothing.
+\end{itemize}
+
+\section{Requirements}
+\subsection{Functional requirements}
+\begin{enumerate}[label=FR\arabic*.]
+\item Accept a source address, an incident window and a tracing strategy, validate them, and run the trace as a background job.
+\item Fetch the neighbourhood of an address from the chain provider, capped to the largest transfers per direction and a minimum value.
+\item Cache every fetched neighbourhood so repeated runs, parameter changes and replays need no new queries.
+\item Expand the frontier round by round, following only time-consistent transfers, and report the share of funds explained after each round.
+\item Stop at labeled exchanges, mixers, sanctioned addresses and DEX contracts, infer exchange deposit addresses, and flag unlabeled high-activity hubs.
+\item Return, for each destination, the share and estimated amount of funds, its type, a confidence level and a path of real transactions.
+\item Tag laundering patterns: pass-through accounts, fan-out, fan-in, peeling chains and fast hops.
+\item Stream events to the interface while the trace runs.
+\item Compare strategies on a case on equal terms (destinations reached, accounts to audit, transfers considered, depth, rounds, run time, cost).
+\item Produce a printable investigator report including the list of addresses to ask an exchange to freeze.
+\end{enumerate}
+\subsection{Non-functional requirements}
+\begin{enumerate}[label=NFR\arabic*.]
+\item \textbf{Cost control:} a dry run before spending, a per-query byte cap and a per-trace budget (30\,GiB); no credentials stored in the repository.
+\item \textbf{Honesty:} every inferred result is labeled as inferred; every limit of the data is visible in the interface and in the report.
+\item \textbf{Determinism and testability:} engines depend only on a provider interface, so they can be tested without network access.
+\item \textbf{Responsiveness:} cached cases replay in seconds; the interface works at projector resolutions (1280$\times$720 and up).
+\item \textbf{Portability:} the same engine code must work for another chain by supplying another provider.
+\end{enumerate}
+
+\subsection{Hardware and software requirements}
+\begin{table}[H]
+\centering\small\singlespacing
+\begin{tabular}{p{3.4cm} p{9.6cm}}
+\toprule
+\textbf{Item} & \textbf{Specification used}\\
+\midrule
+Machine & Windows 11 laptop, 16 cores, 15.7\,GiB RAM, no GPU\\
+Language and runtime & Python 3.12 (analysis and backend), Node.js 24 (frontend build)\\
+Data and analytics & Google BigQuery public \code{crypto\_ethereum} dataset; DuckDB; NumPy, pandas, PyArrow\\
+Machine learning & scikit-learn (random forest, t-SNE, metrics), gensim (skip-gram), Numba (walk generation)\\
+Backend & FastAPI, Uvicorn, Pydantic, server-sent events; SQLite for the edge cache\\
+Frontend & React with Vite, framer-motion, d3-force, Recharts, lucide-react; an HTML canvas for the animated graph\\
+Testing & pytest (78 tests)\\
+Typesetting & Tectonic (XeTeX) for this report and the comparative study\\
+\bottomrule
+\end{tabular}
+\caption{Hardware and software environment.}
+\label{tab:env}
+\end{table}
+
+\section{Feasibility and Cost}
+\paragraph{Technical.} All components are open-source or free-tier, and the work fits on one laptop. The reproduction needed a subsampled core and a 3\,M-node universe because of memory; the tracer needs no training and runs in under a second on cached data.
+
+\paragraph{Economic.} BigQuery bills by bytes scanned (on-demand pricing is per TiB; the first TiB each month is free). We assumed a list price of \$6.25 per TiB, which should be checked against current pricing. The reproduction extraction scanned 48.6\,GiB, which matched its dry run. The tracing prototype scanned 9.51\,GiB for the Cryptopia case, 3.87\,GiB for KuCoin and 19.9\,GiB for the phishing case, about \$0.06, \$0.02 and \$0.12. Finding the phishing example required one exploration query of 29.9\,GiB (about \$0.18), and the total BigQuery spend across the whole MVP was roughly \$0.6. Every cached re-run costs nothing.
+
+\paragraph{Operational.} Public BigQuery data lags the chain, so the prototype is near-real-time at best. A live deployment needs a node, an RPC provider or a commercial feed; that is part of the pending work.
+
+\paragraph{Legal and ethical.} The addresses analysed are public on-chain data. The Etherscan-derived labels come from a scraped public repository, flagged in the decision log; any redistribution requires checking those terms. Every result is presented as an investigative lead, not as proof of identity.

@@ -1,0 +1,132 @@
+% ============================================================== 1. COVER / TITLE PAGE
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+\singlespacing
+{\bfseries\fontsize{17}{22}\selectfont \MakeUppercase{\ProjectTitle}}\\[22pt]
+{\bfseries\fontsize{16}{20}\selectfont A Project Report}\\[14pt]
+{\fontsize{13}{17}\selectfont Submitted in partial fulfilment of the\\ Requirements for the award of the Degree of}\\[14pt]
+{\bfseries\fontsize{16}{20}\selectfont BACHELOR OF ENGINEERING}\\[8pt]
+{\bfseries\fontsize{13}{17}\selectfont IN}\\[8pt]
+{\bfseries\fontsize{16}{20}\selectfont COMPUTER SCIENCE \& ENGINEERING}\\[14pt]
+{\fontsize{13}{17}\selectfont By}\\[8pt]
+{\bfseries\fontsize{14}{18}\selectfont \StudentA}\\{\fontsize{13}{17}\selectfont \HtA}\\[6pt]
+{\bfseries\fontsize{14}{18}\selectfont \StudentB}\\{\fontsize{13}{17}\selectfont \HtB}\\[6pt]
+{\bfseries\fontsize{14}{18}\selectfont \StudentC}\\{\fontsize{13}{17}\selectfont \HtC}\\[14pt]
+{\fontsize{13}{17}\selectfont Under the guidance of}\\[8pt]
+{\bfseries\fontsize{14}{18}\selectfont \GuideName}\\{\fontsize{13}{17}\selectfont \GuideDesignation}\\[14pt]
+\includegraphics[width=2.6cm]{assets/logo.png}\\[10pt]
+{\bfseries\fontsize{13}{17}\selectfont Department of Computer Science \& Engineering}\\
+{\bfseries\fontsize{13}{17}\selectfont Vasavi College of Engineering (Autonomous)}\\
+{\fontsize{12}{15}\selectfont (Affiliated to Osmania University)}\\
+{\fontsize{12}{15}\selectfont Ibrahimbagh, Hyderabad-31}\\[8pt]
+{\bfseries\fontsize{14}{18}\selectfont 2026}
+\end{center}
+\end{titlepage}
+
+% ============================================================== 2. DECLARATION (department / guide copy)
+\newcommand{\declhead}{%
+\begin{center}\singlespacing
+{\bfseries\fontsize{13}{17}\selectfont Vasavi College of Engineering (Autonomous)}\\
+{\fontsize{12}{15}\selectfont (Affiliated to Osmania University)}\\
+{\fontsize{12}{15}\selectfont Hyderabad-500 031}\\
+{\bfseries\fontsize{13}{17}\selectfont Department of Computer Science \& Engineering}\\[10pt]
+\includegraphics[width=2.3cm]{assets/logo.png}\\[16pt]
+\end{center}}
+
+\thispagestyle{empty}
+\declhead
+\begin{center}{\bfseries\fontsize{14}{18}\selectfont DECLARATION BY THE CANDIDATES}\end{center}
+\vspace{8pt}
+\noindent We, \StudentA, \StudentB{} and \StudentC, bearing hall ticket numbers \HtA, \HtB{} and \HtC{} respectively, hereby declare that the project report entitled ``\ProjectTitle'' under the guidance of \GuideName, \GuideDesignation, Department of Computer Science \& Engineering, VCE, Hyderabad, is submitted in partial fulfilment of the requirement for the award of the degree of Bachelor of Engineering in Computer Science \& Engineering.
+
+\medskip
+\noindent This is a record of bonafide work carried out by us and the results embodied in this project report have not been submitted to any other university or institute for the award of any other degree or diploma.
+
+\vfill
+\noindent{\small Note: (This is for Dept.\ / Guide copy only --- all the batch members)}
+\begin{flushright}\singlespacing
+\StudentA\\\HtA\\[8pt]
+\StudentB\\\HtB\\[8pt]
+\StudentC\\\HtC
+\end{flushright}
+\clearpage
+
+% ============================================================== 3. DECLARATION (personal copies, one per student)
+\newcommand{\personaldecl}[2]{%
+\thispagestyle{empty}
+\declhead
+\begin{center}{\bfseries\fontsize{14}{18}\selectfont DECLARATION BY THE CANDIDATE}\end{center}
+\vspace{8pt}
+\noindent I, #1, bearing hall ticket number #2, hereby declare that the project report entitled ``\ProjectTitle'' under the guidance of \GuideName, \GuideDesignation, Department of Computer Science \& Engineering, VCE, Hyderabad, is submitted in partial fulfilment of the requirement for the award of the degree of Bachelor of Engineering in Computer Science \& Engineering.
+
+\medskip
+\noindent This is a record of bonafide work carried out by me and the results embodied in this project report have not been submitted to any other university or institute for the award of any other degree or diploma.
+
+\vfill
+\begin{flushright}\singlespacing
+#1\\#2
+\end{flushright}
+\clearpage}
+\personaldecl{\StudentA}{\HtA}
+\personaldecl{\StudentB}{\HtB}
+\personaldecl{\StudentC}{\HtC}
+
+% ============================================================== 4. BONAFIDE CERTIFICATE
+\thispagestyle{empty}
+\declhead
+\begin{center}{\bfseries\fontsize{14}{18}\selectfont BONAFIDE CERTIFICATE}\end{center}
+\vspace{8pt}
+\noindent This is to certify that the project entitled ``\ProjectTitle'' being submitted by \StudentA, \StudentB{} and \StudentC, bearing \HtA, \HtB{} and \HtC{} respectively, in partial fulfilment of the requirements for the award of the degree of Bachelor of Engineering in Computer Science \& Engineering is a record of bonafide work carried out by them under my guidance.
+
+\vspace{110pt}
+\noindent\begin{tabular}{@{}p{7.2cm}p{7cm}@{}}
+\GuideName & \HodName\\
+\GuideDesignation & Professor \& HEAD\\
+Internal Guide & Dept.\ of CSE
+\end{tabular}
+\clearpage
+
+% ============================================================== 5. ACKNOWLEDGEMENT  (roman numbering starts here)
+\pagenumbering{roman}
+\setcounter{page}{1}
+\begin{center}{\bfseries\fontsize{16}{20}\selectfont ACKNOWLEDGEMENT}\end{center}
+\vspace{6pt}
+\noindent We express our sincere gratitude to our internal guide, \GuideName, \GuideDesignation, Department of Computer Science \& Engineering, for the guidance, patience and encouragement that shaped this project from the first reading of the baseline paper to the final demonstration. The direction to reproduce a published system before improving it, and to state plainly where our results differ from the paper, came from this guidance.
+
+We thank \HodName, Professor and Head of the Department of Computer Science \& Engineering, for providing the environment and the freedom to take on a problem of this scale, and the Principal of Vasavi College of Engineering (Autonomous) for the institutional support extended to the project batch.
+
+We are grateful to the faculty of the department for the courses that made this work possible, in particular those on data structures, algorithms, machine learning, databases and software engineering, and to our project review committee for their suggestions during the interim reviews.
+
+This work builds on the efforts of others whom we acknowledge here: the authors of RiskSEA, whose paper we reproduced; the authors of the textbook on blockchain transaction data analytics whose tracing, attribution and risk-pattern chapters shaped the extension; the maintainers of the open-source libraries we relied on; and the organisations that publish open data, namely the Google BigQuery public Ethereum dataset, the community-maintained Ethereum label lists and the public OFAC sanctions list.
+
+Finally we thank our parents and friends for their support and understanding during the long working sessions this project demanded.
+
+\vspace{26pt}
+\begin{flushright}\singlespacing
+\StudentA\\\HtA\\[8pt]
+\StudentB\\\HtB\\[8pt]
+\StudentC\\\HtC
+\end{flushright}
+\clearpage
+
+% ============================================================== 6. ABSTRACT
+\begin{center}{\bfseries\fontsize{16}{20}\selectfont ABSTRACT}\end{center}
+\vspace{6pt}
+\noindent Victims of cryptocurrency fraud report a wallet address, but the money has usually moved through several anonymous addresses before it reaches an exchange, the only place that holds customer records and can freeze an account. Following that trail by hand takes investigators days. This project has two parts. First, we independently reproduce RiskSEA (Agarwal et al., Coinbase), a scalable graph-embedding risk score for Ethereum addresses, using only the paper's text and public data: Ethereum blocks up to 5\,000\,000, a graph of \NumNodes{} addresses and \NumLabeled{} labeled addresses, on a single laptop. The hyperparameter findings reproduce, dynamic node2vec beats embedding propagation in all three checkpoints with a clear margin at the last, and the paper's headline claim that graph embeddings add substantially to behavioural features does not reproduce on our data, for reasons we trace to our easier, miner-dominated labels.
+
+Second, because RiskSEA scores wallets but does not follow money, we design and build CryptoTrace, a working prototype that starts from a victim-reported wallet and finds the first service that received the funds. It replaces a trained global embedding with a local, directed, time-respecting, value-weighted propagation (TTR-lite); stops at labeled exchanges, mixers, decentralized-exchange contracts and busy hubs; infers exchange deposit addresses with a sweep rule; tags laundering patterns with explainable rules; and returns evidence as paths of real transactions. It is delivered as a FastAPI service with live event streaming and a React application that animates the search. On two documented hacks the tracer reaches the published destinations (99.8\% of the KuCoin funds at the Tornado Cash 100 ETH pool; 99.98\% of the Cryptopia funds at the EtherDelta contract), and on a real phishing-labeled wallet it attributes 90.9\% of the funds to 29 deposit addresses that sweep into one exchange, where a blind two-hop search finds nothing. Each case costs under \$0.15 of BigQuery scanning, and later runs are free through a cache. The report also documents the limits: ETH external transfers only, three cases rather than a full benchmark, inferred rather than confirmed exchange links, and the pending work needed to turn the prototype into a service.
+
+\medskip
+\noindent\textbf{Keywords:} blockchain analytics, Ethereum, money tracing, node2vec, RiskSEA, exchange attribution, taint analysis, fraud investigation.
+\clearpage
+
+% ============================================================== 7--9. CONTENTS, TABLES, FIGURES
+\singlespacing
+\tableofcontents
+\clearpage
+\listoftables
+\clearpage
+\listoffigures
+\clearpage
+\onehalfspacing

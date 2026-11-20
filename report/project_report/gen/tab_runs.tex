@@ -1,0 +1,14 @@
+\begin{tabular}{p{2.6cm} p{1.9cm} r r r r r p{4.4cm}}\toprule
+\textbf{Case} & \textbf{Strategy} & \textbf{Rounds} & \textbf{Accounts} & \textbf{Transfers} & \textbf{Depth} & \textbf{Dest.} & \textbf{Top destination (share)}\\\midrule
+Cryptopia hack (2019) & TTR-lite & 6 & 10 & 106 & 4 & 1 & EtherDelta (DEX contract) (100.0\%)\\
+ & Haircut taint & 6 & 10 & 106 & 4 & 1 & EtherDelta (DEX contract) (100.0\%)\\
+ & Blind BFS & 2 & 9 & 48 & 2 & 1 & EtherDelta (DEX contract) (4.3\%)\\
+\midrule
+KuCoin hack (2020) & TTR-lite & 3 & 3 & 135 & 2 & 1 & Tornado Cash (100 ETH pool) (99.8\%)\\
+ & Haircut taint & 3 & 3 & 135 & 2 & 1 & Tornado Cash (100 ETH pool) (99.8\%)\\
+ & Blind BFS & 2 & 12 & 146 & 2 & 1 & Tornado Cash (100 ETH pool) (49.6\%)\\
+\midrule
+Phishing-labeled wallet (2018) & TTR-lite & 5 & 75 & 1,390 & 3 & 31 & ShapeShift 3 (90.9\%)\\
+ & Haircut taint & 7 & 62 & 1,726 & 3 & 31 & ShapeShift 3 (94.1\%)\\
+ & Blind BFS & 2 & 11 & 59 & 2 & 0 & none\\
+\bottomrule\end{tabular}

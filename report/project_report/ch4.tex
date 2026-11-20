@@ -1,0 +1,218 @@
+\chapter{Pseudo Algorithm and Implementation}
+\label{ch:impl}
+
+\section{Implementation of the RiskSEA Reproduction}
+The reproduction code base is about 1\,800 lines in 18 modules, with 16 scripts and 61 automated tests, all passing. This section describes each stage and the engineering that was needed to make it run on one laptop.
+
+\subsection{Data extraction}
+We extracted ETH transactions and ERC-20 transfer events from the public \code{crypto\_ethereum} BigQuery dataset, aggregating server-side to one row per address pair (count, value, first and last block) and one row per address and direction for behavioural statistics. The source tables are partitioned by timestamp, not block number, so each query filters on both: the timestamp prunes partitions (saving cost) and the block number makes the cut exact. Before anything was run, a dry-run script reported the bytes each query would scan; the Tier S extraction (blocks 0--5\,000\,000) was estimated at 48.6\,GiB, the real run matched, and every query carried a hard billing cap equal to its dry-run size plus 5\%. After download we verified that the highest block received is exactly 5\,000\,000, confirming that the timestamp cap did not truncate data. A fast gRPC download was blocked by the machine's application-control policy, so results were fetched over REST in parallel, resumable range reads.
+
+\subsection{Graph construction}
+The global graph is built in staged DuckDB queries that spill to disk. Addresses are mapped to dense integer ids through a sorted list; joins use 64-bit hashes of addresses, with a collision check (none found). Pair weights are ETH transaction counts plus ERC-20 transfer counts, summed over both directions; each node keeps its top 200 neighbours by weight, as in the paper. The result has \NumNodes{} nodes, \NumPairs{} directed pairs and \NumAdj{} adjacency entries. Random walks run over the undirected view (decision D13), because directed walks stall at sink addresses such as scam collectors.
+
+\subsection{Behavioural features}
+The paper's feature list is never given, so we defined \NumFeat{} features: for ETH (\NumFeatEth{} columns) and ERC-20 (\NumFeatErc{} columns) separately and for incoming and outgoing transfers, statistics of amount (count, sum, mean, standard deviation, minimum, maximum, median), counterparties, active days, timing (mean and standard deviation of gaps, span, burstiness) and in/out ratios. Heavy-tailed amounts are log-compressed before the forest, which leaves a tree model's information unchanged but avoids float32 overflow (decision D21).
+
+\subsection{node2vec at laptop scale}
+Walks are second-order biased walks implemented in Numba, with pre-drawn random numbers so results are deterministic regardless of thread scheduling. Because materialising all walks is impossible at millions of nodes, training streams walks in chunks to the skip-gram model; the vocabulary is built from expected visit frequencies (proportional to weighted degree) instead of a counting pass. We use dimension 128, window 10, 5 negative samples and one epoch (all unspecified in the paper).
+
+\subsection{Propagation, dynamic node2vec and the distributed walk generator}
+\paragraph{Core and propagation.} The core grows outward from the labeled addresses hop by hop up to 2.5\,M nodes, so that its induced subgraph is connected; a purely random 10\% sample would leave most nodes isolated. Embeddings of other addresses are the mean of up to five sampled one-hop core neighbours (Algorithm~\ref{alg:prop}). We run two variants because the paper's core recipe is ambiguous: \emph{variant A}, where labeled addresses are core members and get trained embeddings, and \emph{variant B}, where they are kept out of the core and receive only propagated embeddings (decision D20).
+
+\begin{algorithm}[H]
+\caption{Embedding propagation}\label{alg:prop}
+\small\singlespacing
+\begin{algorithmic}[1]
+\Require graph $G$ with top-200 neighbour lists, core set $C$, embeddings $E$ for $C$
+\For{each address $v\notin C$}
+  \State $N \gets$ one-hop neighbours of $v$ that are in $C$
+  \If{$N=\emptyset$} \State mark $v$ as \emph{not embedded}; \textbf{continue} \EndIf
+  \State $S \gets$ a random sample of at most 5 elements of $N$
+  \State $E[v] \gets \frac{1}{|S|}\sum_{u\in S}E[u]$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Dynamic node2vec.} The model is trained on the first snapshot; each update takes the addresses whose adjacency changed (delta nodes), generates walks from them over the full current graph, adds new addresses to the vocabulary and continues skip-gram training from the previous weights (Algorithm~\ref{alg:dyn}). Untouched addresses keep identical vectors, which a test verifies.
+
+\begin{algorithm}[H]
+\caption{Dynamic node2vec update (DynN2VChain)}\label{alg:dyn}
+\small\singlespacing
+\begin{algorithmic}[1]
+\Require previous model $M$, previous snapshot $G_{k-1}$, new snapshot $G_k$
+\State $\Delta \gets \{v : \mathrm{adj}_{G_k}(v)\neq \mathrm{adj}_{G_{k-1}}(v)\}$ \Comment{changed or new addresses}
+\State add every new address of $G_k$ to the vocabulary of $M$ (string tokens)
+\State $W \gets$ biased second-order walks started from $\Delta$ over the whole $G_k$
+\State continue skip-gram training of $M$ on $W$ from its current weights
+\State \Return $M$ \Comment{vectors of addresses outside $\Delta$ are unchanged}
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Distributed walks.} The split--apply--combine generator reads a neighbour store partitioned by source node, loading only the partitions it needs. By drawing its random numbers from the same stream as the in-memory generator it produces \emph{bit-identical} walks (tested, including across processes); we did not run it on a cluster.
+
+\subsection{Risk model and evaluation protocol}
+A random forest (500 trees, balanced class weights) is trained on an 80/20 split stratified by label and repeated over 5 seeds; we report mean and 95\% confidence interval. Splits are identical across all experiments, so comparisons are paired. Metrics are precision, recall and F$_1$ at threshold 0.5, PR-AUC and ROC-AUC. For the hyperparameter sweep and the propagation-versus-dynamic comparison the forest sees node2vec features only.
+
+\subsection{Verification and bugs found along the way}
+Testing and inspection found four defects worth recording because they could silently corrupt results elsewhere.
+\begin{enumerate}
+\item \textbf{Graph builder out of memory} on the first attempt at scale; rewritten as a staged, hash-keyed build verified equal to the in-memory builder.
+\item \textbf{float32 overflow} from raw ERC-20 token units and in/out ratios (values above $10^{38}$); fixed by monotone log compression.
+\item \textbf{gensim integer-token trap.} With integer tokens, gensim treats \code{n in model.wv} as true whenever $0\le n<|V|$ (it reads $n$ as a row index), so an incremental vocabulary update silently skips new nodes whose id is smaller than the vocabulary size. We reproduced this in isolation, switched all tokens to strings, and added a regression test that fails with integer tokens. This affects any dynamic-node2vec implementation that uses integer node ids with gensim.
+\item \textbf{Leaky coverage flag.} A ``has embedding'' indicator correlated with the label (Section~\ref{sec:t2}); we quantified and controlled for it.
+\end{enumerate}
+
+\section{Implementation of CryptoTrace}
+\subsection{Repository layout}
+The tracing prototype lives in \code{src/cryptotrace} (1\,273 lines in 15 files), separate from the reproduction in \code{src/risksea}. Table~\ref{tab:files} lists the files.
+
+\begin{table}[H]
+\centering\small\singlespacing
+\begin{tabular}{p{4.5cm} p{8.5cm}}
+\toprule
+\textbf{File} & \textbf{Content}\\
+\midrule
+\code{models.py} & Edge, Label, FetchResult, TraceParams, TraceEvent.\\
+\code{providers/base.py} & In-memory provider (tests, synthetic data, replays).\\
+\code{providers/bigquery.py} & BigQuery provider: per-hop query, SQLite cache, dry run, byte caps, cache-only mode.\\
+\code{labels.py} & Label store with provenance; curated mixer, DEX and exchange entries.\\
+\code{engines/common.py} & Shared machinery: fetch, time split, terminals, sweep rule, evidence paths, result and event stream.\\
+\code{engines/ttr.py}, \code{haircut.py}, \code{bfs.py} & The three search strategies.\\
+\code{typology.py} & Rule-based laundering tags.\\
+\code{cases.py}, \code{evaluation.py} & Benchmark cases and comparison metrics.\\
+\code{architecture.py} & The module list the System page draws.\\
+\code{api.py} & FastAPI application, jobs and server-sent events, static serving of the built interface.\\
+\bottomrule
+\end{tabular}
+\caption{Files of the CryptoTrace backend.}
+\label{tab:files}
+\end{table}
+
+\subsection{Pseudo-code of the tracing engine}
+Algorithm~\ref{alg:ttr} gives TTR-lite as implemented. It is a \emph{synchronous} version of a greedy priority search: each round expands every account whose residual exceeds $\epsilon$ at once, which suits batched BigQuery fetches (one query per round).
+
+\begin{algorithm}[H]
+\caption{TTR-lite (ranked, time-respecting forward push)}\label{alg:ttr}
+\small\singlespacing
+\begin{algorithmic}[1]
+\Require source $s$, window $[t_0,t_1)$, parameters $\alpha,\beta,\epsilon$, max rounds $R$, frontier cap $K$
+\State $r[s]\gets 1,\ \sigma[s]\gets 1,\ a[s]\gets t_0$; $\mathrm{rank}\gets 0$; $\mathrm{terminal}\gets\emptyset$; $\mathrm{upstream}\gets\emptyset$
+\For{$\mathrm{round}=1$ \textbf{to} $R$}
+  \State $X \gets \{v: r[v]>\epsilon\}$
+  \For{each $v\in X$ that is a terminal or upstream} \State $\mathrm{rank}[v]\mathrel{+}=r[v];\ r[v]\gets 0$ \EndFor
+  \State $X \gets$ the $K$ accounts of $X$ with largest $r$ that remain; \textbf{if} $X=\emptyset$ \textbf{then stop}
+  \State fetch the neighbourhoods of all of $X$ in one provider call (window start $t_0$)
+  \For{each $v\in X$}
+    \State $F\gets$ outflows of $v$ with $t\ge a[v]$; $B\gets$ inflows of $v$ with $t<a[v]$ \Comment{time-respecting split}
+    \State $\tau\gets \textsc{InferTerminal}(v,F,a[v])$
+    \If{$\tau\neq\bot$} \State record $v$ as terminal $\tau$; $\mathrm{rank}[v]\mathrel{+}=r[v];\ r[v]\gets 0$; \textbf{continue} \EndIf
+    \State $\rho\gets r[v];\ \varsigma\gets\sigma_{\mathrm{pend}}[v]$; clear both; $\mathrm{rank}[v]\mathrel{+}=\alpha\rho$
+    \State $\beta'\gets 1$ if $B=\emptyset$; $0$ if $F=\emptyset$; else $\beta$
+    \For{each $(v\to u,x,t)\in F$}
+      \State $f\gets x/\sum_F x$; $\ r[u]\mathrel{+}=(1-\alpha)\beta'\rho f$; $\ \sigma[u]\mathrel{+}=\varsigma f$
+      \State $a[u]\gets\min(a[u],t)$; $\mathrm{depth}[u]\gets\min(\mathrm{depth}[u],\mathrm{depth}[v]+1)$
+      \If{$u$ is a labeled exchange, mixer, sanctioned or DEX} \State record $u$ as terminal \EndIf
+    \EndFor
+    \For{each $(w\to v,x,t)\in B$}
+      \State $r[w]\mathrel{+}=(1-\alpha)(1-\beta')\rho\, x/\sum_B x$; add $w$ to upstream if it has no forward depth
+    \EndFor
+  \EndFor
+  \State emit an \emph{expand} event: round, frontier size, remaining residual $\sum r$, weights, query and cache counters
+\EndFor
+\State \textbf{if} some $r[v]>\epsilon$ remains \textbf{then} warn ``stopped at the $R$-hop limit with unexplored flows''
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{\textsc{InferTerminal}: sweep rule and hub guard}\label{alg:sweep}
+\small\singlespacing
+\begin{algorithmic}[1]
+\Require unlabeled account $v$, its time-consistent outflows $F$, arrival time $a$
+\State $d\gets \mathrm{in\text{-}degree}(v)+\mathrm{out\text{-}degree}(v)$ in the window
+\If{$d>3000$} \State \Return \emph{service hub} (low confidence) \EndIf
+\If{$v=s$ \textbf{or} $F=\emptyset$} \State \Return $\bot$ \EndIf
+\State $F_{48}\gets\{e\in F: t_e-a\le 48\text{ h}\}$; $T\gets\sum_{F_{48}}x$
+\If{$T\le 0$ \textbf{or} $|\{\mathrm{dst}(e):e\in F_{48}\}|>3$} \State \Return $\bot$ \EndIf
+\State $S_X\gets$ for each labeled exchange $X$, the value of $F_{48}$ sent to wallets of $X$
+\If{$\max_X S_X>0$ \textbf{and} $\sum_X S_X/T\ge 0.8$} \State \Return \emph{exchange deposit} of $\arg\max_X S_X$ (medium confidence) \EndIf
+\State \Return $\bot$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Evidence path (maximum-share time-respecting path)}\label{alg:path}
+\small\singlespacing
+\begin{algorithmic}[1]
+\Require forward edges $E_f$ kept by the search, source $s$, targets $T$
+\State sort $E_f$ by time; $\mathrm{best}[s]\gets(1,\bot,a[s])$
+\For{each edge $e=(u\to w,x,t)$ in time order}
+  \If{$u\notin\mathrm{best}$ \textbf{or} $t<\mathrm{best}[u].\mathrm{time}$} \State \textbf{continue} \EndIf
+  \State $\mathrm{score}\gets\mathrm{best}[u].\mathrm{score}\cdot\min(1,\ x/\mathrm{out}(u))$
+  \If{$w\notin\mathrm{best}$ \textbf{or} $\mathrm{score}>\mathrm{best}[w].\mathrm{score}$} \State $\mathrm{best}[w]\gets(\mathrm{score},e,t)$ \EndIf
+\EndFor
+\For{each target $\theta\in T$} \State follow predecessor edges from $\theta$ back to $s$ and reverse them \EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Provider, cache and cost control}
+The provider (Algorithm~\ref{alg:fetch}) is the single point where money can be spent. It first looks up which of the requested addresses are already in the SQLite cache for the same configuration; only the missing ones are sent to BigQuery, in chunks of up to 400 addresses, and only after checking that the 30\,GiB trace budget has room for another query. In cache-only mode, which is the server default, any missing address raises a \code{CacheMiss} error that the interface shows verbatim (Figure~\ref{fig:35_lab_anywallet_cache_miss}).
+
+\begin{algorithm}[H]
+\caption{Provider fetch with cache and budget}\label{alg:fetch}
+\small\singlespacing
+\begin{algorithmic}[1]
+\Require nodes with earliest needed time $\{v\mapsto t_v\}$, window end $t_1$
+\State $\mathrm{key}\gets(\mathrm{min\_eth},k,t_1)$
+\State $\mathrm{need}\gets\{v: v\notin\mathrm{cache}[\mathrm{key}]\ \text{or}\ \mathrm{cache}[\mathrm{key}][v].t_0>t_v\}$; count the rest as cache hits
+\If{$\mathrm{need}\neq\emptyset$ \textbf{and} cache-only} \State \textbf{raise} \textsc{CacheMiss} \EndIf
+\For{each chunk of $\mathrm{need}$ (at most 400 addresses)}
+  \If{bytes billed so far $+\,2$ GiB $>$ budget} \State \textbf{raise} ``budget reached; stopping the trace'' \EndIf
+  \State run the per-hop query with \texttt{maximum\_bytes\_billed}; store edges and degrees in the cache; add to the counters
+\EndFor
+\State \Return edges and degrees for the requested nodes from the cache
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{API, jobs and event streaming}
+A trace runs in a background thread. The thread appends each engine event to the job's list; the streaming endpoint reads the list every 50\,ms and writes each new event as a server-sent event, finishing with a \code{result} or \code{error} message. Because the same event log is stored in every case file, the interface can replay a stored case exactly as it would show a live one. The server also serves the built single-page application, so a demonstration needs one process.
+
+\subsection{Frontend implementation}
+The interface is a Vite React application (about a dozen source files). The animated graph is a canvas component rather than a library chart because it needs per-frame control. Nodes are positioned by a d3 force simulation; each search round adds its edges, and the canvas draws pulses along edges, rings around nodes that the engine absorbs, and labels only for the source, terminals and the focused node. The drawing loop reads its inputs from a mutable reference so that it never sees stale state (an early bug, Table~\ref{tab:bugs}). Playback advances one round per tick, with 0.5$\times$, 1$\times$ and 2$\times$ speeds, a scrubber and keyboard shortcuts. Routing uses the URL hash and a \code{hashchange} listener. Findings are grouped by receiving entity (Section~\ref{sec:design-group}); the end of playback selects the top finding automatically. A Compare page draws the strategy table and charts from the comparison endpoint, and a Report page lays out the case file as a printable document.
+
+\subsection{Testing}
+Seventy-eight automated tests pass. Sixty-one cover the reproduction (BigQuery query construction, DuckDB graph build, core selection, embeddings, streaming node2vec, dynamic updates, snapshots, labels, the risk model and the synthetic world). Seventeen cover CryptoTrace: ten on the engines and seven on the API. The engine tests use synthetic edge lists with known answers: time-respecting versus time-blind behaviour, the sweep rule, hub detection, the evidence path, and a regression for funds that bounce between two accounts. The API tests check validation errors, the case list with grouped headlines, stored traces, the strategy comparison, a cached re-run with different parameters that must report zero queries, and the clear \code{cache\_miss} error in cache-only mode. The React application has no automated tests; it was checked in a browser and by the screenshot script described in Section~\ref{sec:screens}.
+
+\section{Problems Met and How They Were Solved}
+\label{sec:problems}
+Table~\ref{tab:bugs} records every significant defect or surprise met during the work, with the cause and the fix. We keep them because several would silently corrupt results in another implementation.
+
+\begin{table}[H]
+\centering\footnotesize\singlespacing
+\begin{tabular}{r p{3.9cm} p{4.0cm} p{3.9cm}}
+\toprule
+\textbf{\#} & \textbf{Symptom} & \textbf{Cause} & \textbf{Fix}\\
+\midrule
+1 & Graph build ran out of memory at scale & One in-memory join over 72\,M pairs & Staged, hash-keyed DuckDB build verified equal to the in-memory builder\\
+2 & Random forest crashed on float32 & Raw ERC-20 units and ratios above $10^{38}$ & Monotone signed log compression\\
+3 & Dynamic update silently skipped new nodes & gensim reads integer tokens as row indices & String tokens everywhere; regression test\\
+4 & Coverage flag predicted the label & Bad addresses more often embedded & Measured, removed and reported; conclusions unchanged\\
+5 & Fast download blocked & Application-control policy blocked the gRPC client & Parallel resumable REST range reads\\
+6 & Dry run reported 0\,GiB & An empty \code{IN UNNEST([])} is optimised away & Dry run with a non-empty placeholder address\\
+7 & Time-respecting switch had no effect and upstream funders were never seen & The provider filtered by time itself & Engines always fetch from the window start and filter in the engine\\
+8 & Share bounced between a parent and its child & The edge a node was reached on was also walked backwards & Backward edges strictly before arrival; rounds fell to 6 and 3 with no spurious warnings\\
+9 & Exploration query estimated 37.7\,GiB, above our own 30\,GiB cap & Window too wide & Window narrowed to 2018 (29.9\,GiB, about \$0.18)\\
+10 & Animation used stale data & Draw loop captured old props & Read inputs through a mutable reference\\
+11 & Menu links changed the URL but not the page & No listener for hash changes & \code{hashchange} listener\\
+12 & Comparison bars drawn black & Chart keyed on a missing field & Key on the engine id\\
+13 & Architecture diagram clipped; labels unreadable & Fixed width; no label background & Full-width diagram; pill-shaped label backgrounds; larger fit margin\\
+14 & Twenty-nine near-identical finding cards & One card per address & Group findings by receiving entity\\
+15 & Inline scripts corrupted LaTeX (a backslash-v became a control character) & Shell quoting of backslashes & Write files with the editor tool; control characters repaired\\
+16 & Earlier screenshots mismatched (wrong strategy or case in several) & The capture script raced the animation and kept state & Capture script rewritten to set the case, strategy and round explicitly; all screens retaken\\
+\bottomrule
+\end{tabular}
+\caption{Defects and surprises encountered, with cause and fix.}
+\label{tab:bugs}
+\end{table}
+
+\section{Design Decisions}
+Every place where the paper was silent or ambiguous, and every deviation, was logged when it was made; the 24 entries are in Appendix~\ref{app:decisions}. The most consequential were: running walks on the undirected graph (D13); running both variants of the core-set recipe (D20); log-compressing behavioural amounts (D21); a 3\,M-node universe and 250\,K-block update step for Table~IV (D23); and measuring retraining noise before interpreting the sweep (D24). For CryptoTrace the decisions were: ETH external transfers only; top-200 transfers per direction and a 0.01 ETH dust filter; the 80\%/48-hour/three-recipient sweep rule; the 3\,000-transfer hub threshold; confidence levels per terminal type; and cache-only mode by default so that the interface can never spend money by accident.

@@ -1,0 +1,98 @@
+\chapter{Introduction}
+\label{ch:intro}
+
+\section{Overview}
+Public blockchains such as Ethereum record every transfer of value permanently and openly, yet an address carries no name. This is both their strength and their weakness. A fraudster who receives stolen funds is not identified by the ledger, and the ledger makes it easy to split, forward and recombine those funds across many addresses within minutes. At the same time, every one of those movements is visible to anyone who can read the chain, so the trail exists; the difficulty is following it quickly and presenting it in a form that an investigator, an exchange compliance officer or a court can check.
+
+This project starts from a published system for the first half of that problem and extends it towards the second half. The published system is \emph{RiskSEA} (Agarwal et al., Coinbase) \cite{risksea}, which gives every Ethereum address a risk score between 0 and 1 by combining behavioural statistics of its transfers with a graph embedding produced by node2vec \cite{node2vec}. Its distinctive contribution is scale: it keeps an embedding for hundreds of millions of addresses up to date as the chain grows. We first reproduce that system end to end on a single laptop and compare every table and figure of the paper with what we obtain (Chapters~\ref{ch:analysis}, \ref{ch:impl} and~\ref{ch:results}). We then observe that RiskSEA, however well reproduced, does not answer the question an investigator asks after a victim reports a wallet: \emph{where did the money go, and which exchange can freeze it?} To answer that question we design and build \emph{CryptoTrace}, a working prototype that follows funds forward from a reported wallet, stops at the first service that received them, and returns the evidence as a path of real transactions.
+
+\section{Motivation}
+Cyber-fraud complaints that involve cryptocurrency share a pattern. The victim sends funds to an address supplied by the scammer. Within minutes or hours the funds are forwarded to a second address, split into equal parts, forwarded again and finally deposited at a cryptocurrency exchange, where they are converted or withdrawn. Three facts make the exchange the pivotal point.
+\begin{enumerate}
+\item An exchange holds identity (KYC) records for its customers, so a deposit address at an exchange can be tied to a person.
+\item An exchange can freeze an account if it receives a timely, well-evidenced request.
+\item Public label lists name an exchange's main wallets, but they almost never name the thousands of per-customer \emph{deposit addresses}. These have to be inferred from behaviour.
+\end{enumerate}
+Today the tracing is done by an analyst who opens a block explorer, reads the outgoing transfers of the reported wallet, picks the ones that look relevant and repeats for each recipient. A hop takes minutes; a realistic case takes days; and the result is a set of screenshots, not a reproducible analysis. Commercial tracing tools exist, but they are closed, expensive and give no way to see why a path was chosen. A method that is fast, explainable and open is therefore valuable, and the research literature, summarised in Chapter~\ref{ch:analysis}, shows that local, directed, time-aware tracing is the right family of methods for it, while whole-graph embedding methods are slow and weak at tracing.
+
+\section{Problem Definition}
+\label{sec:problem}
+The problem statement that frames this work is:
+
+\begin{quote}\itshape
+Real-time identification of fraud-linked cryptocurrency exchanges from victim-reported suspect wallet addresses through automated blockchain analytics: ingest reported wallets, trace the funds across hops, identify the nearest exchange or virtual-asset service provider (VASP) that received them, detect laundering patterns and intermediary (mule) wallets, categorise wallet risk, support more than one chain, and deliver the result through dashboards and an API that can be integrated with law-enforcement reporting platforms.
+\end{quote}
+
+Stated as a computational problem: given a source address $s$, an incident time window $[t_0,t_1)$ and the public transaction history of a chain, output (i)~the set of terminal entities $T$ where the funds from $s$ ended up within the window, (ii)~for each $t\in T$ the estimated share of the funds that reached it, its type (exchange, exchange deposit address, mixer, decentralized exchange, unlabeled service) and a confidence, and (iii)~for each $t$ a time-ordered path of real transactions from $s$ to $t$, so that every claim can be verified independently.
+
+\section{Objectives}
+The work was carried out against two sets of objectives that follow each other.
+
+\paragraph{Part A: reproduce the baseline.}
+\begin{enumerate}
+\item Implement every component the RiskSEA paper describes, from its text alone.
+\item Re-run its experiments (Tables~II--IV and Figures~5--13) as faithfully as public data and one laptop allow.
+\item State clearly where we had to deviate and quantify the effect of each deviation.
+\item Leave a trusted, tested baseline that later improvements can be measured against.
+\end{enumerate}
+
+\paragraph{Part B: extend it to the investigator's question.}
+\begin{enumerate}
+\item Build a tracer that starts from a reported wallet and follows funds forward in time, by amount.
+\item Identify the first labeled exchange, or infer an exchange deposit address, reached by the funds; and stop honestly at mixers, decentralized-exchange contracts and busy hubs.
+\item Return evidence as paths of real transactions plus explainable laundering-pattern tags.
+\item Validate the tracer on documented incidents and compare it with simpler strategies on the same data.
+\item Keep the cost of data access low and bounded, and make re-runs free.
+\item Deliver it as an API and an interactive application suitable for a live demonstration, with every limit stated in the interface.
+\end{enumerate}
+
+\section{Scope}
+\subsection{In scope}
+\begin{itemize}
+\item The Ethereum chain: external ETH transfers read from the public BigQuery dataset.
+\item Reproduction of RiskSEA on Ethereum blocks 0--5\,000\,000 (to early 2018) with public labels.
+\item Forward tracing from a single reported wallet within a window of up to 120 days.
+\item Attribution to labeled exchanges, mixers, a decentralized-exchange contract, sanctioned addresses, inferred exchange deposit addresses and unlabeled hubs.
+\item Three tracing strategies (ours, classic taint tracking and blind breadth-first search) on three cases: two documented hacks and one real phishing-labeled wallet.
+\item A FastAPI backend, a React interface and a printable investigator report.
+\end{itemize}
+\subsection{Out of scope (listed as pending work in Chapter~\ref{ch:pending})}
+\begin{itemize}
+\item Internal contract transfers, ERC-20 tokens and stablecoins, and other chains such as Bitcoin, Tron or BNB Chain; cross-chain bridges.
+\item Real-time ingestion: the public dataset lags the chain, so the prototype is near-real-time at best.
+\item Integration with the SAHYOG and NCRP platforms: no specification was available, so these are recorded as requirements to clarify, not built.
+\item A full multi-case benchmark such as the 20-case evaluation reported in the literature; our three cases are a smoke test.
+\end{itemize}
+
+\section{Summary of the Work Done}
+Table~\ref{tab:workdone} lists, in the order they happened, what was done in this project. Each item is described in the chapter noted in the last column.
+
+\begin{table}[H]
+\centering\small\singlespacing
+\begin{tabular}{r p{8.4cm} p{3.4cm}}
+\toprule
+\textbf{\#} & \textbf{Work item} & \textbf{Chapter}\\
+\midrule
+1 & Review of the RiskSEA paper; assessment of how far it can be implemented and what would be needed & \ref{ch:analysis}\\
+2 & End-to-end implementation plan and workflow; decision log started (24 entries) & \ref{ch:analysis}, \ref{ch:impl}\\
+3 & BigQuery dry runs, billing caps, authentication, parallel resumable download & \ref{ch:impl}\\
+4 & Label sourcing and audit (Etherscan-derived lists, OFAC, miners) & \ref{ch:analysis}\\
+5 & Graph build (DuckDB, top-200), core selection, behavioural features (66 columns) & \ref{ch:impl}\\
+6 & node2vec at laptop scale, embedding propagation, dynamic node2vec, partitioned walk generator & \ref{ch:impl}\\
+7 & Experiments: Table~II, hyperparameter sweep (Table~III), Table~IV, t-SNE figures, noise measurement & \ref{ch:results}\\
+8 & Four silent-corruption bugs found and fixed; 61 automated tests & \ref{ch:impl}\\
+9 & Comparative study of paper versus reproduction (data constraints, scorecard, gaps) & \ref{ch:results}\\
+10 & Study of the tracing literature; decision to use RiskSEA as a baseline, not as the whole system; research gaps & \ref{ch:analysis}\\
+11 & CryptoTrace design: architecture, data model, engines, attribution, API, interface & \ref{ch:design}\\
+12 & CryptoTrace implementation and 17 further automated tests (78 in total) & \ref{ch:impl}\\
+13 & Validation on the KuCoin and Cryptopia incidents; discovery and trace of a real phishing-labeled wallet & \ref{ch:results}\\
+14 & Interface polish: grouped findings, demo guide, shortcuts, responsive layout & \ref{ch:results}\\
+15 & Complete screenshot set of every screen, and this report & \ref{ch:results}, Appendix\\
+\bottomrule
+\end{tabular}
+\caption{Work done, in order.}
+\label{tab:workdone}
+\end{table}
+
+\section{Organization of the Report}
+Chapter~\ref{ch:analysis} analyses the existing methods, summarises the literature, sets the data and resource constraints of the reproduction against the paper's, states the research gaps and gives an overview of the proposed system with its requirements. Chapter~\ref{ch:design} gives the design: the reproduction pipeline, the CryptoTrace architecture, the data model, the data layer, the tracing and attribution engines, the API and the interface. Chapter~\ref{ch:impl} gives the algorithms in pseudo-code and the implementation details, the bugs found and the testing. Chapter~\ref{ch:results} presents all results: the reproduction against the paper, the tracing results for each case, the comparison of strategies, the cost, and a walk through every screen of the application. Chapter~\ref{ch:pending} lists the pending work. The references follow, and the appendices hold the decision log, the full list of addresses found, reproduction commands and the full-page screenshots.
