@@ -1,0 +1,31 @@
+\begin{longtable}{p{0.7cm} p{2.1cm} p{3.2cm} p{4.2cm} p{3.6cm}}
+\toprule
+\# & Topic & Paper says & Our choice & Reason\\
+\midrule
+\endhead
+D1 & Behavioral feature list & References "Table 1" for features, but Table I is the data-source table. Says features are based on timestamp, amount, frequency of in/out transactions, for ETH and ERC-20 separately & Own list: amount stats, time stats, frequency, counterparties, in/out ratios, per ETH and ERC-20 & Matches the paper's textual description\\[2pt]
+D2 & Embedding dimension & Not stated & 128 & node2vec default\\[2pt]
+D3 & Skip-gram window / negatives / epochs & Not stated & window 10, negative 5, epochs 1 & gensim-typical defaults\\[2pt]
+D4 & Propagation aggregation & "Aggregated embeddings of 5 sampled one-hop core neighbours" & Mean & Simplest, order-invariant\\[2pt]
+D5 & Random forest & Not stated beyond "random forest" & 500 trees, class\_weight balanced & Standard, robust to imbalance\\[2pt]
+D6 & Train/test split & Not stated & 80/20 stratified by address, fixed seeds, 5 seeds & Standard\\[2pt]
+D7 & Decision threshold for P/R/F1 & Not stated & 0.5, plus PR-AUC and ROC-AUC reported & Threshold-free metrics avoid dependence\\[2pt]
+D8 & Incremental step size & "Daily" training, but 10M->16M blocks at daily steps is \textasciitilde{}830 runs & \texttt{dynamic.step\_\allowbreak{}blocks} config (default 100K blocks), ablated & Almost certainly coarser in practice\\[2pt]
+D9 & Edge definition & Directed; transactions between addresses & Directed, weight = interaction count (ETH + ERC-20) & Top-K ranking uses interaction count\\[2pt]
+D10 & Table III / Figs 8-9 inconsistencies & Blank cells; p/q captions appear swapped & Run the full grid ourselves, do not trust captions & Cross-check\\[2pt]
+D11 & Labels & Private (Coinbase internal + undisclosed external) & Public sources (to be assembled in M3) & Biggest deviation; judged by claims, not absolute numbers\\[2pt]
+D12 & Development data & n/a & Synthetic world with planted fraud clusters (M1) before real data & Fast, deterministic debugging; real-data results are what count for the reproduction\\[2pt]
+D13 & Walk direction & "Directed edges correspond to transactions" & Walks run over the undirected view (neighbors = in + out); \texttt{directed=True} available in \texttt{build\_\allowbreak{}graph} & A pure out-edge walk gets stuck at sinks (fraud collectors, cold wallets); propagation also uses "directly transacted" in either direction\\[2pt]
+D14 & Walk edge weights & Top-K neighbors are chosen by interaction count; walk bias not specified & Weighted walks (probability proportional to interaction count x p/q factor) & Reference node2vec semantics; ablatable via \texttt{weighted} flag\\[2pt]
+D15 & Distributed walk fidelity & "MapReduce split-apply-combine" & Per-walk uniforms taken from the same PCG64 stream as the in-memory generator, so the partitioned output is bit-identical (tested) & Proves distribution changes nothing about the algorithm\\[2pt]
+D16 & Propagation vs dynamic training graph & Both "at similar checkpoints" & Propagation: node2vec on the \emph{induced subgraph of the core set} then one-hop propagation over the full graph; Dynamic: all addresses, incremental & Matches the paper's description of each method\\[2pt]
+D17 & ERC-20 amounts & Not specified & Raw token units (decimals differ per token), plus distinct-token count; ETH value in ETH & Normalising needs a decimals table; revisit if ERC-20 features look unstable\\[2pt]
+D18 & Extraction method & Not specified & Server-side aggregation in BigQuery with partition-pruning on block\_timestamp plus an exact block\_number cut; internal traces excluded & Avoids moving billions of raw rows; matches "transactions" and "ERC-20 transactions"\\[2pt]
+D19 & eth-labels as a label source & n/a & \texttt{phish-hack} (bad) and \texttt{exchange} (good) files from dawsbot/eth-labels (MIT repo) used for development & The repo's data is scraped from Etherscan, whose terms of use are unclear; flagged to the user, who approved the download. Re-check before publishing results or redistributing the data\\[2pt]
+D20 & Are labeled addresses in the core set? & "included all the addresses ... which have transacted with any addresses in the training set" (ambiguous) & Both variants are run: A) labeled addresses are core members (embeddings trained directly); B) labeled addresses are excluded from the core and only get propagated embeddings. Variant B is the faithful test of propagation & Cheap to run both; they answer different questions and the comparison is informative\\[2pt]
+D21 & Heavy-tailed behavioral amounts & Not discussed & Behavioral features go through a monotone \texttt{sign(x)*log1p(|x|)} before the classifier & ERC-20 amounts are raw token units and in/out value ratios reach >1e38, overflowing float32 in the random forest; trees depend only on value ordering, so no information is lost\\[2pt]
+D22 & Snapshots for Table IV & Daily-updated graph; edge counts per time step not specified & Time-sliced snapshots from each pair's first block, unweighted (exact counts per checkpoint are not in the extracted tables); each node keeps its top-200 neighbors by total count, then edges are filtered by first block & Edge existence never looks ahead; only the choice of which neighbors to keep uses final counts\\[2pt]
+D23 & Table IV setup & Checkpoints 5M, 8M, 10M, 16M blocks; 30M-address core of 266M & Universe of 3M nodes around the labeled addresses, propagation core of 1M (labeled excluded), checkpoints 4.0M, 4.5M, 5.0M with an update every 250K blocks, configuration (10,10,1,1) throughout & Bad labels are scarce before 4M blocks (36 present at 4.0M); a 3M universe fits in 15.7 GiB at dimension 128; the core must be large enough to contain the labeled addresses' neighbors\\[2pt]
+D24 & Table III protocol & Sweep on a 30M-address subsample; metric called AUC & Sweep on the 2.5M-node core subgraph, node2vec-only random-forest PR-AUC (area under the precision-recall curve), identical splits for all runs, and 3 extra training seeds of the base configuration to measure retraining noise & Differences in the paper are as small as 0.002, so noise had to be measured; PR-AUC is the paper's stated evaluation metric family\\[2pt]
+\bottomrule
+\end{longtable}

@@ -1,0 +1,82 @@
+{
+  "all": {
+    "real": {
+      "silhouette_cosine": 0.011127633042633533,
+      "knn5_accuracy": 0.9379249835490239,
+      "knn5_balanced_accuracy": 0.41486688396006366,
+      "majority_baseline_accuracy": 0.866695900021925
+    },
+    "shuffled_control": {
+      "silhouette_cosine": -0.06998108327388763,
+      "knn5_accuracy": 0.8572055275279666,
+      "knn5_balanced_accuracy": 0.19889596802160486,
+      "majority_baseline_accuracy": 0.866695900021925
+    },
+    "n": 4559,
+    "classes": {
+      "Exchange": 127,
+      "Fake token / ICO scam": 19,
+      "Miner": 3953,
+      "OFAC sanctioned": 7,
+      "Phishing": 453
+    }
+  },
+  "risky": {
+    "real": {
+      "silhouette_cosine": -0.14806316792964935,
+      "knn5_accuracy": 0.9478079331941545,
+      "knn5_balanced_accuracy": 0.3508771929824561,
+      "majority_baseline_accuracy": 0.9417879417879418
+    },
+    "shuffled_control": {
+      "silhouette_cosine": -0.06802920997142792,
+      "knn5_accuracy": 0.9457202505219207,
+      "knn5_balanced_accuracy": 0.3333333333333333,
+      "majority_baseline_accuracy": 0.9417879417879418
+    },
+    "n": 479,
+    "classes": {
+      "Fake token / ICO scam": 19,
+      "OFAC sanctioned": 7,
+      "Phishing": 453
+    }
+  },
+  "trusted": {
+    "real": {
+      "silhouette_cosine": 0.45716962218284607,
+      "knn5_accuracy": 0.9789215686274509,
+      "knn5_balanced_accuracy": 0.6690383661566716,
+      "majority_baseline_accuracy": 0.9688725490196078
+    },
+    "shuffled_control": {
+      "silhouette_cosine": -0.013908681459724903,
+      "knn5_accuracy": 0.9688725490196078,
+      "knn5_balanced_accuracy": 0.5,
+      "majority_baseline_accuracy": 0.9688725490196078
+    },
+    "n": 4080,
+    "classes": {
+      "Exchange": 127,
+      "Miner": 3953
+    }
+  },
+  "all_by_risk_class": {
+    "real": {
+      "silhouette_cosine": 0.24158558249473572,
+      "knn5_accuracy": 0.9530804648103486,
+      "knn5_balanced_accuracy": 0.8197265704618646,
+      "majority_baseline_accuracy": 0.8945406709055032
+    },
+    "shuffled_control": {
+      "silhouette_cosine": -0.0013130434090271592,
+      "knn5_accuracy": 0.887086165314624,
+      "knn5_balanced_accuracy": 0.49858418939301297,
+      "majority_baseline_accuracy": 0.8945406709055032
+    },
+    "n": 4561,
+    "classes": {
+      "bad": 481,
+      "good": 4080
+    }
+  }
+}

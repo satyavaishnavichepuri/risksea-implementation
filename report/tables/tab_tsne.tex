@@ -1,0 +1,12 @@
+\begin{tabular}{l r cc cc c}
+\toprule
+ & $n$ & \multicolumn{2}{c}{silhouette (cosine)} & \multicolumn{2}{c}{5-NN accuracy} & majority\\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+ & & real & shuffled & real & shuffled & baseline\\
+\midrule
+Bad vs.\ good (all labeled) & 4,561 & 0.242 & -0.001 & 0.953 & 0.887 & 0.895\\
+Six groups (Fig.~11 analog) & 4,559 & 0.011 & -0.070 & 0.938 & 0.857 & 0.867\\
+Risky sub-types only (Fig.~12) & 479 & -0.148 & -0.068 & 0.948 & 0.946 & 0.942\\
+Miners vs.\ exchanges (Fig.~13) & 4,080 & 0.457 & -0.014 & 0.979 & 0.969 & 0.969\\
+\bottomrule
+\end{tabular}

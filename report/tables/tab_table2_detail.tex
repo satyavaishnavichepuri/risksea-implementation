@@ -1,0 +1,14 @@
+\begin{tabular}{l r r ccc ccc}
+\toprule
+ & & & \multicolumn{3}{c}{F$_1$} & \multicolumn{3}{c}{PR-AUC}\\
+\cmidrule(lr){4-6}\cmidrule(lr){7-9}
+Variant & bad & good & behav. & n2v & both & behav. & n2v & both\\
+\midrule
+A: labeled in core & 481 & 4,080 & 0.956{\scriptsize$\pm$0.012} & 0.871{\scriptsize$\pm$0.018} & 0.964{\scriptsize$\pm$0.008} & 0.985{\scriptsize$\pm$0.009} & 0.939{\scriptsize$\pm$0.011} & 0.991{\scriptsize$\pm$0.006}\\
+A, no miners & 481 & 127 & 0.982{\scriptsize$\pm$0.015} & 0.988{\scriptsize$\pm$0.004} & 0.987{\scriptsize$\pm$0.009} & 0.992{\scriptsize$\pm$0.012} & 0.992{\scriptsize$\pm$0.014} & 0.992{\scriptsize$\pm$0.013}\\
+B: propagated & 481 & 4,080 & 0.956{\scriptsize$\pm$0.012} & 0.753{\scriptsize$\pm$0.029} & 0.960{\scriptsize$\pm$0.006} & 0.985{\scriptsize$\pm$0.009} & 0.829{\scriptsize$\pm$0.040} & 0.990{\scriptsize$\pm$0.005}\\
+B, flag removed & 481 & 4,080 & 0.956{\scriptsize$\pm$0.012} & 0.746{\scriptsize$\pm$0.026} & 0.956{\scriptsize$\pm$0.009} & 0.985{\scriptsize$\pm$0.009} & 0.831{\scriptsize$\pm$0.041} & 0.990{\scriptsize$\pm$0.006}\\
+B, covered only & 468 & 3,600 & 0.952{\scriptsize$\pm$0.016} & 0.760{\scriptsize$\pm$0.017} & 0.942{\scriptsize$\pm$0.011} & 0.985{\scriptsize$\pm$0.011} & 0.845{\scriptsize$\pm$0.025} & 0.986{\scriptsize$\pm$0.008}\\
+B, no miners & 481 & 127 & 0.982{\scriptsize$\pm$0.015} & 0.932{\scriptsize$\pm$0.010} & 0.985{\scriptsize$\pm$0.013} & 0.992{\scriptsize$\pm$0.012} & 0.963{\scriptsize$\pm$0.014} & 0.992{\scriptsize$\pm$0.012}\\
+\bottomrule
+\end{tabular}

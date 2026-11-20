@@ -29,3 +29,6 @@ results/*.log
 .idea/
 .DS_Store
 Thumbs.db
+
+# Downloaded tools (portable LaTeX compiler); regenerable binaries
+tools/
