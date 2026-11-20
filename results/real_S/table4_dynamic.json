@@ -1,0 +1,32 @@
+{
+  "method": "dynamic",
+  "checkpoints": [
+    4000000,
+    4500000,
+    5000000
+  ],
+  "universe": 3000000,
+  "per_checkpoint": {
+    "4000000": {
+      "seconds_cumulative": 161.6,
+      "labeled_present": 3412,
+      "labeled_embedded": 3412,
+      "steps": 0,
+      "vocab": 680133
+    },
+    "4500000": {
+      "seconds_cumulative": 586.2,
+      "labeled_present": 4225,
+      "labeled_embedded": 4225,
+      "steps": 2,
+      "vocab": 1696016
+    },
+    "5000000": {
+      "seconds_cumulative": 1598.3,
+      "labeled_present": 4561,
+      "labeled_embedded": 4561,
+      "steps": 4,
+      "vocab": 3000000
+    }
+  }
+}

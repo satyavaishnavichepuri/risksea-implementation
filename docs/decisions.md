@@ -1,0 +1,27 @@
+# Decision log
+
+The RiskSEA paper (arXiv 2410.02160) leaves many details open. Each choice made here is recorded with the reason, so it can be revisited. Values live in `config/default.yaml`.
+
+| # | Topic | Paper says | Our choice | Reason |
+|---|---|---|---|---|
+| D1 | Behavioral feature list | References "Table 1" for features, but Table I is the data-source table. Says features are based on timestamp, amount, frequency of in/out transactions, for ETH and ERC-20 separately | Own list: amount stats, time stats, frequency, counterparties, in/out ratios, per ETH and ERC-20 | Matches the paper's textual description |
+| D2 | Embedding dimension | Not stated | 128 | node2vec default |
+| D3 | Skip-gram window / negatives / epochs | Not stated | window 10, negative 5, epochs 1 | gensim-typical defaults |
+| D4 | Propagation aggregation | "Aggregated embeddings of 5 sampled one-hop core neighbours" | Mean | Simplest, order-invariant |
+| D5 | Random forest | Not stated beyond "random forest" | 500 trees, class_weight balanced | Standard, robust to imbalance |
+| D6 | Train/test split | Not stated | 80/20 stratified by address, fixed seeds, 5 seeds | Standard |
+| D7 | Decision threshold for P/R/F1 | Not stated | 0.5, plus PR-AUC and ROC-AUC reported | Threshold-free metrics avoid dependence |
+| D8 | Incremental step size | "Daily" training, but 10M->16M blocks at daily steps is ~830 runs | `dynamic.step_blocks` config (default 100K blocks), ablated | Almost certainly coarser in practice |
+| D9 | Edge definition | Directed; transactions between addresses | Directed, weight = interaction count (ETH + ERC-20) | Top-K ranking uses interaction count |
+| D10 | Table III / Figs 8-9 inconsistencies | Blank cells; p/q captions appear swapped | Run the full grid ourselves, do not trust captions | Cross-check |
+| D11 | Labels | Private (Coinbase internal + undisclosed external) | Public sources (to be assembled in M3) | Biggest deviation; judged by claims, not absolute numbers |
+| D12 | Development data | n/a | Synthetic world with planted fraud clusters (M1) before real data | Fast, deterministic debugging; real-data results are what count for the reproduction |
+| D13 | Walk direction | "Directed edges correspond to transactions" | Walks run over the undirected view (neighbors = in + out); `directed=True` available in `build_graph` | A pure out-edge walk gets stuck at sinks (fraud collectors, cold wallets); propagation also uses "directly transacted" in either direction |
+| D14 | Walk edge weights | Top-K neighbors are chosen by interaction count; walk bias not specified | Weighted walks (probability proportional to interaction count x p/q factor) | Reference node2vec semantics; ablatable via `weighted` flag |
+| D15 | Distributed walk fidelity | "MapReduce split-apply-combine" | Per-walk uniforms taken from the same PCG64 stream as the in-memory generator, so the partitioned output is bit-identical (tested) | Proves distribution changes nothing about the algorithm |
+| D16 | Propagation vs dynamic training graph | Both "at similar checkpoints" | Propagation: node2vec on the *induced subgraph of the core set* then one-hop propagation over the full graph; Dynamic: all addresses, incremental | Matches the paper's description of each method |
+| D17 | ERC-20 amounts | Not specified | Raw token units (decimals differ per token), plus distinct-token count; ETH value in ETH | Normalising needs a decimals table; revisit if ERC-20 features look unstable |
+| D18 | Extraction method | Not specified | Server-side aggregation in BigQuery with partition-pruning on block_timestamp plus an exact block_number cut; internal traces excluded | Avoids moving billions of raw rows; matches "transactions" and "ERC-20 transactions" |
+| D19 | eth-labels as a label source | n/a | `phish-hack` (bad) and `exchange` (good) files from dawsbot/eth-labels (MIT repo) used for development | The repo's data is scraped from Etherscan, whose terms of use are unclear; flagged to the user, who approved the download. Re-check before publishing results or redistributing the data |
+| D20 | Are labeled addresses in the core set? | "included all the addresses ... which have transacted with any addresses in the training set" (ambiguous) | Both variants are run: A) labeled addresses are core members (embeddings trained directly); B) labeled addresses are excluded from the core and only get propagated embeddings. Variant B is the faithful test of propagation | Cheap to run both; they answer different questions and the comparison is informative |
+| D21 | Heavy-tailed behavioral amounts | Not discussed | Behavioral features go through a monotone `sign(x)*log1p(|x|)` before the classifier | ERC-20 amounts are raw token units and in/out value ratios reach >1e38, overflowing float32 in the random forest; trees depend only on value ordering, so no information is lost |

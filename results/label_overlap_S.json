@@ -1,0 +1,28 @@
+{
+  "tier": "S",
+  "per_source": {
+    "block_miners": {
+      "labeled": 3959,
+      "in_graph": 3953
+    },
+    "ethlabels_exchange": {
+      "labeled": 372,
+      "in_graph": 127
+    },
+    "ethlabels_phish_hack": {
+      "labeled": 5590,
+      "in_graph": 474
+    },
+    "ofac_sanctioned": {
+      "labeled": 123,
+      "in_graph": 7
+    }
+  },
+  "after_merge": {
+    "before": 10044,
+    "in_graph": 4561,
+    "dropped_not_in_graph": 5483,
+    "final_bad": 481,
+    "final_good": 4080
+  }
+}

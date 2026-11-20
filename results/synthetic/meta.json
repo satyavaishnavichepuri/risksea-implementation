@@ -1,0 +1,12 @@
+{
+  "coverage": {
+    "overall": 1.0
+  },
+  "importance": {
+    "behavioral_eth": 0.6262032776264859,
+    "behavioral_erc20": 0.25959636548090437,
+    "node2vec": 0.1142003568926098
+  },
+  "nodes": 1264,
+  "transfers": 37241
+}

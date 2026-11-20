@@ -1,0 +1,21 @@
+[project]
+name = "risksea"
+version = "0.1.0"
+description = "Reproduction of RiskSEA (arXiv 2410.02160): scalable graph embeddings for Ethereum address risk scoring"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy", "pandas", "pyarrow", "duckdb", "scikit-learn", "gensim",
+  "numba", "matplotlib", "pyyaml", "networkx", "pytest",
+  "google-cloud-bigquery", "db-dtypes",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

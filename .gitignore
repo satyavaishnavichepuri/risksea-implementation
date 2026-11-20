@@ -1,0 +1,31 @@
+# Python virtual environments (any common name)
+.venv/
+venv/
+env/
+ENV/
+
+# Python caches and build output
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Local data: raw BigQuery extracts, graphs, embeddings, downloaded label files.
+# Kept out of git on purpose: very large, regenerable, and some label sources have unclear terms of use.
+data/
+
+# Secrets and credentials (never commit these)
+.env
+.env.*
+application_default_credentials.json
+*service-account*.json
+
+# Generated results that are large or noisy (the small JSON/CSV/MD result files stay tracked)
+*.npz
+results/*.log
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

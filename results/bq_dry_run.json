@@ -1,0 +1,31 @@
+{
+"S_edges_eth": "20410418548"
+,
+"S_edges_erc20": "5553042540"
+,
+"S_features_eth": "20410418548"
+,
+"S_features_erc20": "5553042540"
+,
+"S_miners": "300635880"
+,
+"M_edges_eth": "94754680420"
+,
+"M_edges_erc20": "68119071847"
+,
+"M_features_eth": "94754680420"
+,
+"M_features_erc20": "68119071847"
+,
+"M_miners": "600635880"
+,
+"L_edges_eth": "242304926080"
+,
+"L_edges_erc20": "219633384878"
+,
+"L_features_eth": "242304926080"
+,
+"L_features_erc20": "219633384878"
+,
+"L_miners": "960635880"
+}
